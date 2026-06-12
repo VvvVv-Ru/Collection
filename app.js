@@ -46,6 +46,13 @@ const flowerFlyAsset = "./assets/effects/flower-fly.svg";
 const tileRevealSoundAsset = "./assets/audio/sfx/tile-reveal.wav";
 const tileEnemyHitSoundAsset = "./assets/audio/sfx/tile-enemy-hit.wav";
 const customCursorAsset = "./assets/ui/cursor/cursor-default.png";
+const startBeeAsset = "./assets/ui/cursor/cursor-default.png";
+const startBeeConfig = {
+  followDurationMs: 280,
+  followEasing: "cubic-bezier(0.22, 1, 0.36, 1)",
+  offsetY: -28,
+  offsetX: 0,
+};
 const audioAssetMap = {
   bgmMain: "./assets/audio/bgm/bgm-main.mp3",
 };
@@ -317,6 +324,9 @@ const dom = hasDom
       boardViewport: document.getElementById("board-viewport"),
       board: document.getElementById("board"),
       fxOverlay: document.getElementById("fx-overlay"),
+      startMarkerOverlay: document.getElementById("start-marker-overlay"),
+      startBee: document.getElementById("start-bee"),
+      startBeeImage: document.getElementById("start-bee-image"),
       totalHoney: document.getElementById("total-honey"),
       roundHoney: document.getElementById("round-honey"),
       roundHoneyCard: document.getElementById("round-honey-card"),
@@ -545,6 +555,40 @@ function resetCollectionFeedback(options = {}) {
   }
 
   dom?.roundHoneyCard?.classList.remove("hud-card--collect");
+}
+
+function initStartBeeOverlay() {
+  if (!dom?.startBee || !dom.startBeeImage) {
+    return;
+  }
+
+  dom.startBee.style.transition = `transform ${startBeeConfig.followDurationMs}ms ${startBeeConfig.followEasing}`;
+  if (dom.startBeeImage.getAttribute("src") !== startBeeAsset) {
+    dom.startBeeImage.src = startBeeAsset;
+  }
+}
+
+function updateStartBeePosition() {
+  if (!dom?.startMarkerOverlay || !dom.startBee) {
+    return;
+  }
+
+  const currentStartTileId = gameState.currentStartTileId;
+  const tileElement = currentStartTileId
+    ? dom.board?.querySelector(`[data-tile-id="${currentStartTileId}"]`)
+    : null;
+
+  if (!tileElement) {
+    dom.startBee.style.transform = "translate(-9999px, -9999px) translate(-50%, -100%)";
+    return;
+  }
+
+  const tileRect = tileElement.getBoundingClientRect();
+  const overlayRect = dom.startMarkerOverlay.getBoundingClientRect();
+  const x = tileRect.left + tileRect.width / 2 - overlayRect.left + startBeeConfig.offsetX;
+  const y = tileRect.top + tileRect.height / 2 - overlayRect.top + startBeeConfig.offsetY;
+
+  dom.startBee.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
 }
 
 function getOverlayRelativePointFromRect(rect, anchorY = 0.5) {
@@ -995,6 +1039,7 @@ function applyResponsiveGameScale() {
   const topOffset = isMobileViewport ? 0 : Math.max(0, (availableHeight - stageHeight * scale) / 2);
   dom.gameStage.style.top = `${topOffset}px`;
   dom.gameStage.style.transform = `translateX(-50%) scale(${scale})`;
+  updateStartBeePosition();
 }
 
 function getTileTypeLabel(type) {
@@ -1194,6 +1239,7 @@ function restartGame(options = {}) {
     roundConfig: getRoundConfigSnapshot(),
   });
   renderAll();
+  updateStartBeePosition();
   syncDebugHandle();
   return gameState;
 }
@@ -1287,6 +1333,7 @@ function completeRun(outcome) {
     updateGameOverState();
   }
   renderAll();
+  updateStartBeePosition();
 
   return {
     ok: true,
@@ -1665,6 +1712,12 @@ function syncDebugHandle() {
     extendRun,
     endRun,
     spawnFlowerFlyEffect,
+    setStartBeeAsset(path) {
+      if (dom?.startBeeImage) {
+        dom.startBeeImage.src = path;
+      }
+    },
+    updateStartBeePosition,
     getRoundConfigSnapshot,
     getStateSnapshot,
     resetGame(options = {}) {
@@ -1809,6 +1862,7 @@ function init() {
   validateLayoutConfig();
   computeBoardSize();
   attachEventListeners();
+  initStartBeeOverlay();
   restartGame();
   initBgm();
 }

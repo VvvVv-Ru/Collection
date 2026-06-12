@@ -1,10 +1,10 @@
 # B-COD 记录
 
 ## Claim
-- 任务 ID：B-COD-DEMO-AUDIO-001
-- 当前 claim：模块《主背景 BGM 接入》
-- 范围：接入 `assets/audio/bgm/bgm-main.mp3` 主背景音乐、自动循环、低音量默认、首手势降级启动、加一个静音切换按钮；不改其它玩法、音效与光标系统
-- 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）
+- 任务 ID：FX-02
+- 当前 claim：模块《起点格子强化标识（描边 + 常驻蜜蜂）》
+- 范围：增强 `.tile--start` 常驻描边、新增 `#start-marker-overlay` 与常驻蜜蜂浮层、补齐 `updateStartBeePosition()` 与调试入口；不改采集主流程、飞花层与已有音效/BGM
+- 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）
 
 ## 实现记录
 - 新建最小静态前端文件：`index.html`、`style.css`、`app.js`
@@ -73,6 +73,10 @@
 - 按下时给 `body` 加 `is-dragging-cursor` class 强制 `cursor: none !important`；松手时移除并播放淡出动画
 - 跟随逻辑只在 `pointermove` 内更新 transform，并用 `requestAnimationFrame` 合并多次坐标更新，避免布局抖动
 - 监听挂在 `window` 上，与现有 `board` 上的滑动采集事件解耦，不影响 `beginRun / extendRun / endRun` 流程
+- 本轮 claim：`FX-02` 起点强化标识——将 `.tile--start` 基础态改为常驻金色外描边，旧的起点 ring 仅保留给 `tile--start-pulse` 瞬时动画，避免遮挡 tile 图像与 `起点` badge
+- 新增常驻起点蜜蜂浮层：`index.html` 增加 `#start-marker-overlay > .start-bee > .start-bee__image`，默认资源由 `startBeeAsset` 注入，待机动画始终循环，不受拖动 / 失败 / 重开 / 游戏结束暂停
+- 新增 `startBeeConfig` 与 `updateStartBeePosition()`：基于当前 `gameState.currentStartTileId` 与 `#start-marker-overlay`/tile 的 `getBoundingClientRect()` 计算 overlay 相对位移，用 `transform` + 280ms easing 平滑追随起点迁移
+- 触发点控制：不在 `renderAll()` 内逐帧调用；仅在 `applyResponsiveGameScale()`、`restartGame()`、`completeRun()` 后精确重对齐；`window.demoBoard` 新增 `setStartBeeAsset(path)` 与 `updateStartBeePosition()` 调试入口
 
 ## 接口登记
 - 无外部接口
@@ -100,6 +104,12 @@
 - BGM 静音偏好：`localStorage["honey-demo:bgm-muted"]`（`"1"` 静音，`"0"` 非静音）；常量 `bgmConfig.storageKey` 单点维护
 - 自定义光标控制函数：`showCustomCursor(event)` / `hideCustomCursor()` / `attachCustomCursorListeners()`（位于 `app.js`）
 - 自定义光标运行态：`customCursorState`（位于 `app.js`，含 `isActive / pointerId / pendingX / pendingY / rafId / hideTimer`）
+
+### 资源入口
+- 起点蜜蜂资源入口：`startBeeAsset`（位于 `app.js`，默认指向 `./assets/ui/cursor/cursor-default.png`）
+- 起点蜜蜂跟随配置：`startBeeConfig`（位于 `app.js`，当前含 `followDurationMs / followEasing / offsetY / offsetX`）
+- 起点蜜蜂 DOM 锚点：`#start-marker-overlay`、`#start-bee`、`#start-bee-image`（位于 `index.html`）
+- 起点蜜蜂重对齐函数：`updateStartBeePosition()`（位于 `app.js`，并暴露到 `window.demoBoard`）
 
 ## 验证记录
 - 已做：
@@ -131,11 +141,12 @@
   18. 接入自定义光标后再次执行 `node --check app.js`，语法通过；事件挂在 `window` 上，与 `board` 上的采集事件互不干扰
   19. 接入撞天敌音效后再次执行 `node --check app.js`，语法通过；enemy 分支用 `setTileRevealed(tileId, { silent: true })` 静音 reveal、再单独播放 enemy-hit，避免叠音；安全/花格 reveal 音效不被抑制
   20. 切换自定义光标资源到 `assets/ui/cursor/cursor-default.png` 后再次执行 `node --check app.js`，语法通过；路径仅在 `customCursorAsset` 常量出现一次，HTML 中 `src` 由 JS 初始化时写入
-  21. 接入采集范围高亮后再次执行 `node --check app.js`，语法通过；`board--collecting` 仅在 `renderBoard()` 内 `gameState.isDragging` 真值时挂上；未新增逐格 JS 样式写入；未改动 `createTileElement` 的 class 列表
-  22. 接入主背景 BGM 后再次执行 `node --check app.js`，语法通过；路径仅在 `audioAssetMap.bgmMain` 一处出现；自动播放被拦截时降级到首手势启动，不阻塞其它流程
-  23. SFX-03 上移翻格音效触发点后再次执行 `node --check app.js`，语法通过；安全分支无论是否首次 reveal 都播一次；enemy 分支不叠音；一次 `extendRun(tileId)` 仅触发一次音效
+   21. 接入采集范围高亮后再次执行 `node --check app.js`，语法通过；`board--collecting` 仅在 `renderBoard()` 内 `gameState.isDragging` 真值时挂上；未新增逐格 JS 样式写入；未改动 `createTileElement` 的 class 列表
+   22. 接入主背景 BGM 后再次执行 `node --check app.js`，语法通过；路径仅在 `audioAssetMap.bgmMain` 一处出现；自动播放被拦截时降级到首手势启动，不阻塞其它流程
+   23. SFX-03 上移翻格音效触发点后再次执行 `node --check app.js`，语法通过；安全分支无论是否首次 reveal 都播一次；enemy 分支不叠音；一次 `extendRun(tileId)` 仅触发一次音效
+   24. 接入 FX-02 起点描边与常驻蜜蜂浮层后再次执行 `node --check app.js`，语法通过；`updateStartBeePosition()` 未挂进 `renderAll()`，仅在起点变化与缩放链路后调用
 - 未做：浏览器人工打开验收
-- 未验证原因：当前会话未启动浏览器进行视觉检查，也无法在此直接录屏；尚未人工确认飞花轨迹、HUD 吸附弹跳、音效触发时机、移动端缩放后的锚点精度
+- 未验证原因：当前会话未启动浏览器进行视觉检查，也无法在此直接录屏；尚未人工确认飞花轨迹、HUD 吸附弹跳、音效触发时机、移动端缩放后的锚点精度，以及 FX-02 蜜蜂层级 / 描边观感 / 起点迁移动画
 - 建议验证步骤：
   1. 直接打开 `index.html`
   2. 连续滑过 3~5 个花朵格，确认飞花按约 0.08 秒错峰发射，形成连续 `Pupupu` 节奏
@@ -145,10 +156,13 @@
   6. 成功松手后确认总花蜜结算、起点继承、飞花/数字收尾没有破坏原有主流程
   7. 失败踩敌后确认未到达飞花不会残留到下一轮
   8. 长按任意位置后系统指针应立即消失，自定义光标出现并做缩放弹出
-  9. 长按移动鼠标，确认自定义光标稳定跟随、中心点对齐判定点
-  10. 松手后自定义光标应淡出而非瞬间消失，系统指针恢复
-  11. 快速 down/up/down 切换时光标状态切换不卡，不残留
+   9. 长按移动鼠标，确认自定义光标稳定跟随、中心点对齐判定点
+   10. 松手后自定义光标应淡出而非瞬间消失，系统指针恢复
+   11. 快速 down/up/down 切换时光标状态切换不卡，不残留
+   12. 拖动采集中确认起点描边与常驻蜜蜂不受 `board--collecting` dim 影响
+   13. 成功 / 失败结算后观察蜜蜂是否约 280ms 平滑移动到新起点或回退起点
+   14. 点击“重新开始”后确认蜜蜂回到 `T18`，窗口缩放或竖屏切换后仍与起点格居中对齐
 
 ## 协作需求
-- 默认可交给 `B-FIX` 做浏览器实机回归：飞花层级、Bezier 弧线观感、HUD 锚点精度、音效时机与移动端缩放适配
-- 若当前阶段先做人眼验收，也可先交 `A-ASK` / 用户按上方步骤检查，再决定是否补第二轮爽感优化
+- 默认可交给 `B-FIX` 做浏览器实机回归：飞花层级、Bezier 弧线观感、HUD 锚点精度、音效时机、FX-02 起点蜜蜂迁移手感与移动端缩放适配
+- 本模块完成后建议回流 `@A-PLN` 做阶段收口；若先做人眼验收，也可先交 `A-ASK` / 用户按上方步骤检查，再决定是否补第二轮爽感优化

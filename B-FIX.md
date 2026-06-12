@@ -97,6 +97,30 @@
 - 天敌格需要在实际踩中或打开调试时再做一次人工确认
 - 原因：这些不属于本次资源替换显示 bug 的根因修复，继续修改会扩大范围
 
+## 新增排查：起点蜜蜂未跟随起点
+### 复现条件
+- 正常开局后完成若干次移动与结算，观察“起点” badge 与蜜蜂浮层位置
+- 当前截图中，`起点` badge 已落在新起点格上，但蜜蜂浮层仍停在上方旧位置附近
+
+### 根因判断
+- 起点 badge 与起点格本体属于同一个 tile DOM，在 `renderBoard()` 重绘时会直接跟随 `gameState.currentStartTileId`
+- 蜜蜂不是 tile 子元素，而是独立的 overlay：`#start-marker-overlay > #start-bee`
+- 它的位置完全依赖 `updateStartBeePosition()` 手动计算 `getBoundingClientRect()` 后再写入 `transform`
+- 当前触发点过少：按 B-COD 记录，重定位只放在 `applyResponsiveGameScale()`、`restartGame()`、`completeRun()`，不在每次 `renderAll()` 后更新
+- 同时 `.start-bee` 还带有 `280ms` 的 `transform` transition，因此当起点格立即切换时，badge 会先到位，而蜜蜂会滞后动画移动，视觉上就是“没有跟随起点”
+
+### 涉及文件
+- `app.js`
+  - `updateStartBeePosition()`
+  - `completeRun()`
+  - `renderAll()`
+- `style.css`
+  - `.start-bee`
+
+### 结论
+- 当前问题不在起点状态值本身，`gameState.currentStartTileId` 与 `起点` badge 逻辑大概率是对的
+- 真正的问题在于：蜜蜂采用独立 overlay 手动定位，并且定位刷新时机少、还叠加了过渡动画，所以会和起点 tile 脱节
+
 ## 给 B-COD 的提醒
 - 不要继续在 `.tile__inner` 上叠加旧占位风格描边
 - 不要再用 `background` 简写覆盖贴图
