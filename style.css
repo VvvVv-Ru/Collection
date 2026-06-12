@@ -757,7 +757,7 @@ body.is-dragging-cursor * {
     filter: brightness(1);
   }
   50% {
-    filter: brightness(1.12);
+    filter: brightness(1.05);
   }
 }
 
