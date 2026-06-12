@@ -23,7 +23,7 @@ body {
   margin: 0;
   min-height: 100vh;
   position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
   font-family: "Trebuchet MS", "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text-main);
   background: #fffcf4;
@@ -47,20 +47,49 @@ body::before {
 }
 
 .app-shell {
+  width: 100%;
+  height: 100vh;
   min-height: 100vh;
   padding: 20px 16px 28px;
   position: relative;
   z-index: 1;
+  overflow: hidden;
+}
+
+.game-stage-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.fx-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+  overflow: visible;
+}
+
+.game-stage {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 540px;
+  padding-bottom: 96px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 18px;
+  transform-origin: top center;
 }
 
 .hud {
-  width: min(100%, 540px);
+  width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: 10px;
 }
@@ -80,11 +109,11 @@ body::before {
   flex-direction: column;
   gap: 6px;
   text-align: center;
-  width: min(100%, 320px);
+  width: min(100%, 250px);
 }
 
 .hud-card--primary {
-  width: min(100%, 360px);
+  width: min(100%, 250px);
 }
 
 .hud-card--primary strong {
@@ -96,7 +125,57 @@ body::before {
 }
 
 .hud-card--secondary {
-  width: min(100%, 280px);
+  width: min(100%, 250px);
+  position: relative;
+  transform-origin: center;
+}
+
+.hud-card--secondary.hud-card--collect {
+  animation: hud-collect-bounce 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hud-roll {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5em;
+  height: 1em;
+  overflow: hidden;
+}
+
+.hud-roll__track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hud-roll__digit {
+  display: block;
+  height: 1em;
+  line-height: 1;
+}
+
+.hud-roll--animating .hud-roll__track {
+  animation: hud-roll-up 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.hud-collect-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.3);
+  background:
+    radial-gradient(circle, rgba(255, 251, 236, 0.96) 0 28%, rgba(255, 216, 92, 0.88) 45%, rgba(255, 216, 92, 0) 72%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.72) 0 32%, rgba(255, 255, 255, 0) 68%);
+}
+
+.hud-card--secondary.hud-card--collect .hud-collect-burst {
+  animation: hud-collect-burst 0.34s ease-out;
 }
 
 .hud-label,
@@ -111,21 +190,39 @@ body::before {
   line-height: 1;
 }
 
+.bee-counter__label {
+  font-size: 24px;
+}
+
+.bee-counter strong {
+  font-size: 50px;
+}
+
 .board-panel {
-  width: min(100%, 540px);
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
 }
 
+.board-viewport {
+  width: 500px;
+  max-width: 100%;
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: visible;
+}
+
 .board {
   position: relative;
-  width: min(100%, 500px);
-  min-height: 780px;
+  flex: none;
   border-radius: 36px;
   touch-action: none;
   transition: box-shadow 0.24s ease, transform 0.24s ease;
+  transform-origin: top center;
 }
 
 .board--fail-flash {
@@ -272,15 +369,16 @@ body::before {
 }
 
 .status-text {
-  width: min(100%, 540px);
+  width: min(100%, 648px);
+  flex-basis: 100%;
   margin: 0;
-  padding: 12px 16px;
-  border-radius: 18px;
+  padding: 14px 19px;
+  border-radius: 22px;
   background: rgba(255, 248, 229, 0.78);
   border: 2px solid rgba(191, 126, 36, 0.18);
   box-shadow: var(--shadow-soft);
   text-align: center;
-  font-size: 14px;
+  font-size: 22px;
   color: var(--text-main);
 }
 
@@ -316,6 +414,26 @@ body::before {
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
   z-index: 20;
+}
+
+.flower-fly {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 50px;
+  height: 50px;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 5px 10px rgba(153, 83, 22, 0.25));
+}
+
+.flower-fly__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
 }
 
 .toast--visible {
@@ -369,11 +487,11 @@ body::before {
 }
 
 .bee-counter {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  width: min(168px, 100%);
-  padding: 14px 18px;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(252px, 100%);
+  padding: 21px 27px;
   text-align: center;
   z-index: 10;
 }
@@ -436,6 +554,44 @@ body::before {
   }
 }
 
+@keyframes hud-roll-up {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes hud-collect-bounce {
+  0% {
+    transform: scale(1);
+  }
+  28% {
+    transform: scale(1.5);
+  }
+  62% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes hud-collect-burst {
+  0% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.25);
+  }
+  70% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.9);
+  }
+}
+
 @keyframes move-background {
   0% {
     transform: translate(0, 0);
@@ -448,20 +604,58 @@ body::before {
 
 @media (max-width: 560px) {
   .app-shell {
-    padding-inline: 10px;
+    height: 100svh;
+    padding: 8px 10px 0;
   }
 
-  .board {
-    width: 100%;
-    min-height: 720px;
-    transform: scale(0.88);
-    transform-origin: top center;
-    margin-bottom: -84px;
+  .game-stage {
+    width: 540px;
+    padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .game-stage-viewport {
+    height: 100%;
+  }
+
+  .app-shell,
+  .game-stage {
+    gap: 10px;
+  }
+
+  .hud {
+    gap: 4px;
+  }
+
+  .hud-card {
+    width: min(100%, 160px);
+    padding: 7px 9px;
+    gap: 3px;
+    border-radius: 16px;
+  }
+
+  .hud-card--primary {
+    width: min(100%, 180px);
+  }
+
+  .hud-card--secondary {
+    width: min(100%, 140px);
+  }
+
+  .hud-label {
+    font-size: 10px;
+  }
+
+  .hud-card strong {
+    font-size: 20px;
+  }
+
+  .board-viewport {
+    width: 500px;
   }
 
   .bee-counter {
     right: 10px;
-    bottom: 10px;
-    width: 148px;
+    bottom: env(safe-area-inset-bottom, 0px);
+    width: 222px;
   }
 }

@@ -36,6 +36,14 @@ const tileAssetMap = {
   enemy: "./assets/tiles/tile-enemy.png",
   flower: "./assets/tiles/tile-flower.png",
 };
+const collectFeedbackConfig = {
+  flyDuration: 1000,
+  launchInterval: 140,
+  hudRollDuration: 180,
+  hudResetDelay: 120,
+};
+const flowerFlyAsset = "./assets/effects/flower-fly.svg";
+const tileRevealSoundAsset = "./assets/audio/sfx/tile-reveal.wav";
 const tileTypeCounts = {
   enemy: 3,
   flower: 8,
@@ -48,6 +56,7 @@ const boardMetrics = {
   xUnit: 66,
   yUnit: 99,
 };
+const boardDisplayScale = 1.3;
 
 const hasDom = typeof document !== "undefined";
 
@@ -294,9 +303,14 @@ let feedbackTimers = [];
 
 const dom = hasDom
   ? {
+      gameStageViewport: document.getElementById("game-stage-viewport"),
+      gameStage: document.getElementById("game-stage"),
+      boardViewport: document.getElementById("board-viewport"),
       board: document.getElementById("board"),
+      fxOverlay: document.getElementById("fx-overlay"),
       totalHoney: document.getElementById("total-honey"),
       roundHoney: document.getElementById("round-honey"),
+      roundHoneyCard: document.getElementById("round-honey-card"),
       beesLeft: document.getElementById("bees-left"),
       statusText: document.getElementById("status-text"),
       toast: document.getElementById("toast"),
@@ -305,6 +319,46 @@ const dom = hasDom
       restartButton: document.getElementById("restart-button"),
     }
   : null;
+
+let collectionTimers = [];
+const feedbackState = {
+  currentRunToken: 0,
+  nextLaunchAt: 0,
+  pendingLaunchCount: 0,
+  activeFlights: new Map(),
+  flightRafId: null,
+  flightCounter: 0,
+  hudDisplayedValue: 0,
+  hudTargetValue: 0,
+  isHudRolling: false,
+  hudRollingFrom: 0,
+  hudRollingTo: 0,
+  shouldResetRoundHoney: false,
+  audioContext: null,
+};
+
+function getNow() {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+
+  return Date.now();
+}
+
+function scheduleCollectionTask(callback, delay = 0) {
+  const timerId = setTimeout(() => {
+    collectionTimers = collectionTimers.filter((id) => id !== timerId);
+    callback();
+  }, delay);
+
+  collectionTimers.push(timerId);
+  return timerId;
+}
+
+function clearCollectionTasks() {
+  collectionTimers.forEach((timerId) => clearTimeout(timerId));
+  collectionTimers = [];
+}
 
 function scheduleFeedback(callback, delay) {
   const timerId = setTimeout(() => {
@@ -413,15 +467,435 @@ function getStateSnapshot() {
   };
 }
 
-function syncRoundHoney() {
-  gameState.roundHoney = gameState.currentRunHoney;
+function syncRoundHoney(value = gameState.roundHoney) {
+  const nextValue = Math.max(0, Math.trunc(value));
+  feedbackState.hudDisplayedValue = nextValue;
+  feedbackState.hudTargetValue = nextValue;
+  feedbackState.isHudRolling = false;
+  feedbackState.hudRollingFrom = nextValue;
+  feedbackState.hudRollingTo = nextValue;
+  feedbackState.shouldResetRoundHoney = false;
+  gameState.roundHoney = nextValue;
+}
+
+function renderRoundHoneyValue(value, nextValue = null) {
+  if (!dom?.roundHoney) {
+    return;
+  }
+
+  if (nextValue === null || nextValue === undefined || nextValue === value) {
+    dom.roundHoney.className = "hud-roll";
+    dom.roundHoney.textContent = String(value);
+    return;
+  }
+
+  dom.roundHoney.className = "hud-roll hud-roll--animating";
+  dom.roundHoney.innerHTML = `
+    <span class="hud-roll__track" aria-hidden="true">
+      <span class="hud-roll__digit">${value}</span>
+      <span class="hud-roll__digit">${nextValue}</span>
+    </span>
+  `;
+  dom.roundHoney.setAttribute("aria-label", `本轮暂存 ${nextValue}`);
+}
+
+function stopFlowerFlightLoop() {
+  if (feedbackState.flightRafId !== null) {
+    cancelAnimationFrame(feedbackState.flightRafId);
+    feedbackState.flightRafId = null;
+  }
+}
+
+function clearActiveFlowerFlights() {
+  feedbackState.activeFlights.forEach((flight) => {
+    flight.element.remove();
+  });
+  feedbackState.activeFlights.clear();
+  stopFlowerFlightLoop();
+}
+
+function resetCollectionFeedback(options = {}) {
+  const { resetRunToken = false, clearFlights = true, resetDisplay = true } = options;
+
+  clearCollectionTasks();
+  feedbackState.nextLaunchAt = 0;
+  feedbackState.pendingLaunchCount = 0;
+  feedbackState.shouldResetRoundHoney = false;
+
+  if (resetRunToken) {
+    feedbackState.currentRunToken += 1;
+  }
+
+  if (clearFlights) {
+    clearActiveFlowerFlights();
+  }
+
+  if (resetDisplay) {
+    syncRoundHoney(0);
+    renderRoundHoneyValue(0);
+  }
+
+  dom?.roundHoneyCard?.classList.remove("hud-card--collect");
+}
+
+function getOverlayRelativePointFromRect(rect, anchorY = 0.5) {
+  if (!dom?.fxOverlay) {
+    return null;
+  }
+
+  const overlayRect = dom.fxOverlay.getBoundingClientRect();
+  return {
+    x: rect.left + rect.width / 2 - overlayRect.left,
+    y: rect.top + rect.height * anchorY - overlayRect.top,
+  };
+}
+
+function getTileFlightOrigin(tileId) {
+  const tileElement = dom?.board?.querySelector(`[data-tile-id="${tileId}"]`);
+
+  if (!tileElement) {
+    return null;
+  }
+
+  return getOverlayRelativePointFromRect(tileElement.getBoundingClientRect(), 0.42);
+}
+
+function getHudCollectTargetPoint() {
+  if (!dom?.roundHoneyCard) {
+    return null;
+  }
+
+  return getOverlayRelativePointFromRect(dom.roundHoneyCard.getBoundingClientRect(), 0.5);
+}
+
+function easeOutCubic(value) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
+function easeOutBack(value) {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(value - 1, 3) + c1 * Math.pow(value - 1, 2);
+}
+
+function getQuadraticBezierPoint(start, control, end, progress) {
+  const inverse = 1 - progress;
+  return {
+    x: inverse * inverse * start.x + 2 * inverse * progress * control.x + progress * progress * end.x,
+    y: inverse * inverse * start.y + 2 * inverse * progress * control.y + progress * progress * end.y,
+  };
+}
+
+function createFlowerFlightElement() {
+  const element = document.createElement("div");
+  element.className = "flower-fly";
+  element.innerHTML = `<img class="flower-fly__image" src="${flowerFlyAsset}" alt="" />`;
+  return element;
+}
+
+function ensureFlightLoop() {
+  if (feedbackState.flightRafId !== null || feedbackState.activeFlights.size === 0) {
+    return;
+  }
+
+  const tick = (now) => {
+    const completedIds = [];
+
+    feedbackState.activeFlights.forEach((flight, flightId) => {
+      const rawProgress = Math.min(1, (now - flight.startTime) / flight.duration);
+      const progress = easeOutCubic(rawProgress);
+      const point = getQuadraticBezierPoint(flight.start, flight.control, flight.end, progress);
+      const popWindow = rawProgress < 0.2 ? rawProgress / 0.2 : 1;
+      const popScale = rawProgress < 0.2 ? easeOutBack(popWindow) : 1;
+      const scale = Math.max(0.86, 1.04 - rawProgress * 0.14) * popScale;
+      const opacity = rawProgress > 0.82 ? Math.max(0, 1 - (rawProgress - 0.82) / 0.18) : 1;
+      const rotation = flight.rotationStart + flight.rotationDelta * progress;
+
+      flight.element.style.opacity = String(opacity);
+      flight.element.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`;
+
+      if (rawProgress >= 1) {
+        completedIds.push(flightId);
+      }
+    });
+
+    completedIds.forEach((flightId) => finishFlowerFlight(flightId));
+
+    if (feedbackState.activeFlights.size === 0) {
+      feedbackState.flightRafId = null;
+      return;
+    }
+
+    feedbackState.flightRafId = requestAnimationFrame(tick);
+  };
+
+  feedbackState.flightRafId = requestAnimationFrame(tick);
+}
+
+function ensureCollectAudioContext() {
+  if (!hasDom) {
+    return null;
+  }
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioContextClass) {
+    return null;
+  }
+
+  if (!feedbackState.audioContext) {
+    feedbackState.audioContext = new AudioContextClass();
+  }
+
+  return feedbackState.audioContext;
+}
+
+function primeCollectAudio() {
+  const audioContext = ensureCollectAudioContext();
+  if (audioContext?.state === "suspended") {
+    audioContext.resume().catch(() => {});
+  }
+  primeTileRevealSound();
+}
+
+let tileRevealSoundTemplate = null;
+
+function primeTileRevealSound() {
+  if (typeof Audio === "undefined") {
+    return;
+  }
+
+  if (!tileRevealSoundTemplate) {
+    try {
+      tileRevealSoundTemplate = new Audio(tileRevealSoundAsset);
+      tileRevealSoundTemplate.preload = "auto";
+    } catch (_error) {
+      tileRevealSoundTemplate = null;
+    }
+  }
+}
+
+function playTileRevealSound() {
+  if (typeof Audio === "undefined") {
+    return;
+  }
+
+  try {
+    const instance = tileRevealSoundTemplate
+      ? tileRevealSoundTemplate.cloneNode(true)
+      : new Audio(tileRevealSoundAsset);
+    const playResult = instance.play();
+    if (playResult && typeof playResult.catch === "function") {
+      playResult.catch(() => {});
+    }
+  } catch (_error) {
+    // 失败静默，不影响主流程
+  }
+}
+
+function playCollectSound() {
+  const audioContext = ensureCollectAudioContext();
+
+  if (!audioContext) {
+    return;
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume().catch(() => {});
+  }
+
+  const startedAt = audioContext.currentTime;
+  const frequencies = [880, 1320];
+
+  frequencies.forEach((frequency, index) => {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    oscillator.type = index === 0 ? "triangle" : "sine";
+    oscillator.frequency.setValueAtTime(frequency, startedAt);
+    gainNode.gain.setValueAtTime(0.0001, startedAt);
+    gainNode.gain.exponentialRampToValueAtTime(0.08 / (index + 1), startedAt + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, startedAt + 0.16 + index * 0.02);
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.start(startedAt + index * 0.012);
+    oscillator.stop(startedAt + 0.19 + index * 0.03);
+  });
+}
+
+function playHudCollectFeedback() {
+  if (!dom?.roundHoneyCard) {
+    return;
+  }
+
+  dom.roundHoneyCard.classList.remove("hud-card--collect");
+  void dom.roundHoneyCard.offsetWidth;
+  dom.roundHoneyCard.classList.add("hud-card--collect");
+  scheduleCollectionTask(() => {
+    dom.roundHoneyCard?.classList.remove("hud-card--collect");
+  }, 360);
+}
+
+function maybeResetRoundHoneyAfterArrival() {
+  const hasPendingVisuals =
+    feedbackState.pendingLaunchCount > 0 ||
+    feedbackState.activeFlights.size > 0 ||
+    feedbackState.isHudRolling ||
+    feedbackState.hudDisplayedValue < feedbackState.hudTargetValue;
+
+  if (!feedbackState.shouldResetRoundHoney || hasPendingVisuals) {
+    return;
+  }
+
+  feedbackState.shouldResetRoundHoney = false;
+  scheduleCollectionTask(() => {
+    if (gameState.isDragging) {
+      return;
+    }
+
+    syncRoundHoney(0);
+    renderRoundHoneyValue(0);
+  }, collectFeedbackConfig.hudResetDelay);
+}
+
+function runNextHudIncrement() {
+  if (feedbackState.hudDisplayedValue >= feedbackState.hudTargetValue) {
+    feedbackState.isHudRolling = false;
+    feedbackState.hudRollingFrom = feedbackState.hudDisplayedValue;
+    feedbackState.hudRollingTo = feedbackState.hudDisplayedValue;
+    renderRoundHoneyValue(feedbackState.hudDisplayedValue);
+    maybeResetRoundHoneyAfterArrival();
+    return;
+  }
+
+  feedbackState.isHudRolling = true;
+  const currentValue = feedbackState.hudDisplayedValue;
+  const nextValue = currentValue + 1;
+  feedbackState.hudRollingFrom = currentValue;
+  feedbackState.hudRollingTo = nextValue;
+  renderRoundHoneyValue(currentValue, nextValue);
+
+  scheduleCollectionTask(() => {
+    feedbackState.hudDisplayedValue = nextValue;
+    gameState.roundHoney = nextValue;
+    renderRoundHoneyValue(nextValue);
+    runNextHudIncrement();
+  }, collectFeedbackConfig.hudRollDuration);
+}
+
+function enqueueTempHoneyIncrement(amount = 1) {
+  feedbackState.hudTargetValue += amount;
+
+  if (!feedbackState.isHudRolling) {
+    runNextHudIncrement();
+  }
+}
+
+function finishFlowerFlight(flightId) {
+  const flight = feedbackState.activeFlights.get(flightId);
+
+  if (!flight) {
+    return;
+  }
+
+  flight.element.remove();
+  feedbackState.activeFlights.delete(flightId);
+  playHudCollectFeedback();
+  playCollectSound();
+  enqueueTempHoneyIncrement(1);
+  maybeResetRoundHoneyAfterArrival();
+}
+
+function animateFlowerToHud(startPoint, runToken) {
+  if (!dom?.fxOverlay) {
+    enqueueTempHoneyIncrement(1);
+    return;
+  }
+
+  if (runToken !== feedbackState.currentRunToken) {
+    return;
+  }
+
+  const endPoint = getHudCollectTargetPoint();
+
+  if (!startPoint || !endPoint) {
+    playHudCollectFeedback();
+    playCollectSound();
+    enqueueTempHoneyIncrement(1);
+    return;
+  }
+
+  const dx = endPoint.x - startPoint.x;
+  const midX = startPoint.x + dx * 0.5;
+  const arcHeight = Math.min(180, Math.max(88, Math.abs(dx) * 0.16 + Math.abs(endPoint.y - startPoint.y) * 0.22));
+  const controlPoint = {
+    x: midX + dx * 0.12,
+    y: Math.min(startPoint.y, endPoint.y) - arcHeight,
+  };
+  const element = createFlowerFlightElement();
+  const flightId = ++feedbackState.flightCounter;
+
+  element.style.transform = `translate(${startPoint.x}px, ${startPoint.y}px) translate(-50%, -50%) scale(0.45)`;
+  dom.fxOverlay.appendChild(element);
+  feedbackState.activeFlights.set(flightId, {
+    element,
+    start: startPoint,
+    control: controlPoint,
+    end: endPoint,
+    startTime: getNow(),
+    duration: collectFeedbackConfig.flyDuration,
+    rotationStart: -18 + Math.random() * 14,
+    rotationDelta: 22 + Math.random() * 26,
+  });
+  ensureFlightLoop();
+}
+
+function spawnFlowerFlyEffect(tileId) {
+  if (!hasDom || !dom?.fxOverlay || !dom.roundHoneyCard) {
+    syncRoundHoney(gameState.currentRunHoney);
+    return;
+  }
+
+  const startPoint = getTileFlightOrigin(tileId);
+  const runToken = feedbackState.currentRunToken;
+  const now = getNow();
+  const launchAt = Math.max(now, feedbackState.nextLaunchAt);
+  const delay = Math.max(0, launchAt - now);
+
+  feedbackState.nextLaunchAt = launchAt + collectFeedbackConfig.launchInterval;
+  feedbackState.pendingLaunchCount += 1;
+
+  scheduleCollectionTask(() => {
+    feedbackState.pendingLaunchCount = Math.max(0, feedbackState.pendingLaunchCount - 1);
+
+    if (runToken !== feedbackState.currentRunToken) {
+      maybeResetRoundHoneyAfterArrival();
+      return;
+    }
+
+    animateFlowerToHud(startPoint, runToken);
+  }, delay);
+}
+
+function queueRoundHoneyReset() {
+  if (!hasDom) {
+    syncRoundHoney(0);
+    return;
+  }
+
+  feedbackState.shouldResetRoundHoney = true;
+  maybeResetRoundHoneyAfterArrival();
 }
 
 function setTileRevealed(tileId) {
   const tileState = gameState.tileStateMap[tileId];
+  const wasRevealed = tileState.revealed;
   tileState.revealed = true;
   tileState.unlocked = true;
   gameState.revealedTiles.add(tileId);
+
+  if (!wasRevealed) {
+    playTileRevealSound();
+  }
 }
 
 function isSafeTileType(type) {
@@ -454,6 +928,33 @@ function computeBoardSize() {
 
   dom.board.style.width = `${width}px`;
   dom.board.style.height = `${height}px`;
+  dom.board.style.transform = `scale(${boardDisplayScale})`;
+  if (dom.boardViewport) {
+    dom.boardViewport.style.width = `${width * boardDisplayScale}px`;
+    dom.boardViewport.style.height = `${height * boardDisplayScale}px`;
+  }
+  applyResponsiveGameScale();
+}
+
+function applyResponsiveGameScale() {
+  if (!dom?.gameStage || !dom.gameStageViewport) {
+    return;
+  }
+
+  const stageWidth = dom.gameStage.offsetWidth;
+  const stageHeight = dom.gameStage.offsetHeight;
+  const availableWidth = dom.gameStageViewport.clientWidth;
+  const availableHeight = dom.gameStageViewport.clientHeight;
+
+  if (!stageWidth || !stageHeight || !availableWidth || !availableHeight) {
+    return;
+  }
+
+  const scale = Math.min(1, availableWidth / stageWidth, availableHeight / stageHeight);
+  const isMobileViewport = window.matchMedia("(max-width: 560px)").matches;
+  const topOffset = isMobileViewport ? 0 : Math.max(0, (availableHeight - stageHeight * scale) / 2);
+  dom.gameStage.style.top = `${topOffset}px`;
+  dom.gameStage.style.transform = `translateX(-50%) scale(${scale})`;
 }
 
 function getTileTypeLabel(type) {
@@ -508,7 +1009,11 @@ function renderHud() {
   }
 
   dom.totalHoney.textContent = String(gameState.totalHoney);
-  dom.roundHoney.textContent = String(gameState.roundHoney);
+  if (feedbackState.isHudRolling) {
+    renderRoundHoneyValue(feedbackState.hudRollingFrom, feedbackState.hudRollingTo);
+  } else {
+    renderRoundHoneyValue(gameState.roundHoney);
+  }
   dom.beesLeft.textContent = String(gameState.remainingBees);
 
   dom.totalHoney.closest(".hud-card")?.classList.toggle("hud-card--pulse", gameState.totalHoneyPulse);
@@ -635,6 +1140,7 @@ function renderAll() {
 
 function restartGame(options = {}) {
   clearFeedbackTimers();
+  resetCollectionFeedback({ resetRunToken: true, clearFlights: true, resetDisplay: true });
   const nextOptions = {
     ...options,
     previousState: gameState,
@@ -670,12 +1176,14 @@ function beginRun(tileId, pointerId = null) {
     return { ok: false, reason: "invalid-start" };
   }
 
+  resetCollectionFeedback({ resetRunToken: true, clearFlights: true, resetDisplay: true });
+  primeCollectAudio();
   gameState.remainingBees -= 1;
   gameState.isDragging = true;
   gameState.dragPointerId = pointerId;
   gameState.currentPath = [tileId];
   gameState.currentRunHoney = 0;
-  syncRoundHoney();
+  syncRoundHoney(0);
   gameState.lastSafeTileId = tileId;
   gameState.hasHitEnemy = false;
   gameState.lastOutcome = null;
@@ -701,7 +1209,7 @@ function completeRun(outcome) {
   if (outcome === "failure") {
     gameState.currentStartTileId = nextStartTileId;
     gameState.currentRunHoney = 0;
-    syncRoundHoney();
+    resetCollectionFeedback({ resetRunToken: true, clearFlights: true, resetDisplay: true });
     gameState.statusText = `踩到天敌，本轮失败；下一轮从 ${nextStartTileId} 继续。`;
     logEvent("本轮失败结算", {
       path,
@@ -713,7 +1221,7 @@ function completeRun(outcome) {
     gameState.totalHoney += gainedHoney;
     gameState.currentStartTileId = nextStartTileId;
     gameState.currentRunHoney = 0;
-    syncRoundHoney();
+    queueRoundHoneyReset();
     gameState.statusText =
       gainedHoney > 0
         ? `本轮成功，获得 ${gainedHoney} 花蜜；下一轮起点 ${nextStartTileId}。`
@@ -778,7 +1286,7 @@ function extendRun(tileId) {
 
   if (tileState.type === "flower") {
     gameState.currentRunHoney += 1;
-    syncRoundHoney();
+    spawnFlowerFlyEffect(tileId);
     gameState.statusText = `采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`;
   } else {
     gameState.statusText = `进入安全格 ${tileId}。`;
@@ -893,6 +1401,7 @@ function attachEventListeners() {
     });
   };
   dom.restartButton?.addEventListener("click", restartHandler);
+  window.addEventListener("resize", applyResponsiveGameScale);
 }
 
 function getSerializableTileStateMap() {
@@ -925,6 +1434,18 @@ function syncDebugHandle() {
     get tileStateMap() {
       return getSerializableTileStateMap();
     },
+    get feedbackState() {
+      return {
+        currentRunToken: feedbackState.currentRunToken,
+        nextLaunchAt: feedbackState.nextLaunchAt,
+        pendingLaunchCount: feedbackState.pendingLaunchCount,
+        activeFlightCount: feedbackState.activeFlights.size,
+        hudDisplayedValue: feedbackState.hudDisplayedValue,
+        hudTargetValue: feedbackState.hudTargetValue,
+        isHudRolling: feedbackState.isHudRolling,
+        shouldResetRoundHoney: feedbackState.shouldResetRoundHoney,
+      };
+    },
     get contentSummary() {
       return summarizeTileTypes(gameState.tileStateMap);
     },
@@ -934,6 +1455,7 @@ function syncDebugHandle() {
     beginRun,
     extendRun,
     endRun,
+    spawnFlowerFlyEffect,
     getRoundConfigSnapshot,
     getStateSnapshot,
     resetGame(options = {}) {

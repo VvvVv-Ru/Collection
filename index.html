@@ -8,32 +8,40 @@
   </head>
   <body>
     <main class="app-shell">
-      <header class="hud">
-        <section class="hud-card hud-card--primary">
-          <span class="hud-label">总花蜜</span>
-          <strong id="total-honey">0</strong>
-        </section>
-        <section class="hud-card hud-card--secondary">
-          <span class="hud-label">本轮暂存</span>
-          <strong id="round-honey">0</strong>
-        </section>
-      </header>
+      <div id="game-stage-viewport" class="game-stage-viewport">
+        <div id="game-stage" class="game-stage">
+          <header class="hud">
+            <section class="hud-card hud-card--primary">
+              <span class="hud-label">总花蜜</span>
+              <strong id="total-honey">0</strong>
+            </section>
+            <section id="round-honey-card" class="hud-card hud-card--secondary">
+              <span class="hud-label">本轮暂存</span>
+              <strong id="round-honey" class="hud-roll" aria-live="polite">0</strong>
+              <span class="hud-collect-burst" aria-hidden="true"></span>
+            </section>
+            <p id="status-text" class="status-text">按住当前起点并滑动，松手后结算本轮。</p>
+          </header>
 
-      <section class="board-panel">
-        <div id="board" class="board" aria-label="蜂窝盘面"></div>
-        <p id="status-text" class="status-text">按住当前起点并滑动，松手后结算本轮。</p>
-        <div id="toast" class="toast" aria-live="polite"></div>
-        <div id="game-over" class="game-over" hidden>
-          <strong class="game-over__title">游戏结束</strong>
-          <p id="game-over-summary" class="game-over__summary">总花蜜：0</p>
-          <button id="restart-button" class="game-over__button" type="button">重新开始</button>
+          <section class="board-panel">
+            <div id="board-viewport" class="board-viewport">
+              <div id="board" class="board" aria-label="蜂窝盘面"></div>
+            </div>
+            <div id="toast" class="toast" aria-live="polite"></div>
+            <div id="game-over" class="game-over" hidden>
+              <strong class="game-over__title">游戏结束</strong>
+              <p id="game-over-summary" class="game-over__summary">总花蜜：0</p>
+              <button id="restart-button" class="game-over__button" type="button">重新开始</button>
+            </div>
+          </section>
+
+          <aside class="bee-counter">
+            <span class="bee-counter__label">剩余蜜蜂</span>
+            <strong id="bees-left">10</strong>
+          </aside>
         </div>
-      </section>
-
-      <aside class="bee-counter">
-        <span class="bee-counter__label">剩余蜜蜂</span>
-        <strong id="bees-left">10</strong>
-      </aside>
+        <div id="fx-overlay" class="fx-overlay" aria-hidden="true"></div>
+      </div>
     </main>
 
     <script src="./app.js"></script>
