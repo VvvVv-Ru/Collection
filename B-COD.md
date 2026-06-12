@@ -1,10 +1,10 @@
 # B-COD 记录
 
 ## Claim
-- 任务 ID：FX-02
-- 当前 claim：模块《起点格子强化标识（描边 + 常驻蜜蜂）》
-- 范围：增强 `.tile--start` 常驻描边、新增 `#start-marker-overlay` 与常驻蜜蜂浮层、补齐 `updateStartBeePosition()` 与调试入口；不改采集主流程、飞花层与已有音效/BGM
-- 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）
+- 任务 ID：RULE-03 / FX-03
+- 当前 claim：模块《删除固定起点 UI + 非法点击反馈》
+- 范围：删除固定起点文案/描边/常驻跟随物，保留 RULE-01 候选呼吸与按下瞬时脉冲，并新增非法点击红闪与预留音效接口；不改自由起点、扣费、飞花与音效主流程
+- 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）、`FX-02`（起点格子强化标识）、`RULE-01`（取消起点继承 + 自由选择起点）、`RULE-02`（蜜蜂消耗保护机制）
 
 ## 实现记录
 - 新建最小静态前端文件：`index.html`、`style.css`、`app.js`
@@ -73,10 +73,20 @@
 - 按下时给 `body` 加 `is-dragging-cursor` class 强制 `cursor: none !important`；松手时移除并播放淡出动画
 - 跟随逻辑只在 `pointermove` 内更新 transform，并用 `requestAnimationFrame` 合并多次坐标更新，避免布局抖动
 - 监听挂在 `window` 上，与现有 `board` 上的滑动采集事件解耦，不影响 `beginRun / extendRun / endRun` 流程
-- 本轮 claim：`FX-02` 起点强化标识——将 `.tile--start` 基础态改为常驻金色外描边，旧的起点 ring 仅保留给 `tile--start-pulse` 瞬时动画，避免遮挡 tile 图像与 `起点` badge
-- 新增常驻起点蜜蜂浮层：`index.html` 增加 `#start-marker-overlay > .start-bee > .start-bee__image`，默认资源由 `startBeeAsset` 注入，待机动画始终循环，不受拖动 / 失败 / 重开 / 游戏结束暂停
-- 新增 `startBeeConfig` 与 `updateStartBeePosition()`：基于当前 `gameState.currentStartTileId` 与 `#start-marker-overlay`/tile 的 `getBoundingClientRect()` 计算 overlay 相对位移，用 `transform` + 280ms easing 平滑追随起点迁移
-- 触发点控制：不在 `renderAll()` 内逐帧调用；仅在 `applyResponsiveGameScale()`、`restartGame()`、`completeRun()` 后精确重对齐；`window.demoBoard` 新增 `setStartBeeAsset(path)` 与 `updateStartBeePosition()` 调试入口
+- 本轮 claim：`FX-02` 起点强化标识——曾为起点加入常驻金色外描边与常驻跟随物，并保留 `tile--start-pulse` 作为瞬时动画层
+- FX-03 已删除起点描边与常驻蜜蜂浮层：固定“起点”文案、常驻金色高亮、常驻跟随物已从界面移除，只保留候选弱描边与按下瞬时脉冲
+- 本轮 claim：`RULE-01` 自由起点——取消 success / failure 后的自动起点继承，新增 `lastEndedTileId` 作为空闲态视觉锚点；`currentStartTileId` 仅在首局引导或拖动中的当前轮起点时有意义
+- 新增 `isValidStartCandidate(tileId)` 与 `getDisplayStartTileId()`：空闲态允许任意已翻开的安全格直接按下起手；起点描边与 FX-02 蜜蜂统一改由 `currentStartTileId ?? lastEndedTileId` 决定
+- 空闲态新增合法起点候选描边：`.tile--start-candidate` 使用弱描边 + 呼吸动画提示；拖动中与游戏结束时自动移除，避免与 FX-01 dim 抢戏
+- 新增 `playStartSelectSound()` 预留空函数，并在合法起点按下时调用一次；资源路径建议后续接入 `assets/audio/sfx/select-start.wav`
+- 文案调整：初始提示改为“按住已翻开的安全格作为起点，滑动采集。”；成功/失败结算均改为“请选择本轮起点。”
+- 本轮 claim：`RULE-02` 蜜蜂消耗保护——删除 `beginRun()` 预扣蜜蜂，改为在 `completeRun()` 顶部按 `path.length >= 2` 才扣 1 只蜜蜂；仅“按下起点立即松手”属于未消耗
+- 新增 `gameState.lastConsumedBee`：记录上一轮是否真实扣费，并在 `getStateSnapshot()` 中导出，供 toast / 日志 / 调试使用
+- 成功/失败文案与 toast 口径同步重写：成功未消耗显示“本轮未采集，蜜蜂未消耗。”并走 `info` tone；成功已消耗显示“本轮成功，获得 N 花蜜。”；失败已消耗显示“踩到天敌，本轮失败。”；理论兜底未消耗失败显示“本轮失败，蜜蜂未消耗。”
+- 日志补充：成功/失败结算日志均追加 `consumedBee / pathLength`；未消耗轮次单独记录 `logEvent("本轮蜜蜂未消耗")`
+- 本轮 claim：`RULE-03 / FX-03` 固定起点 UI 移除——初始文案改为“选择任意已翻开的格子（天敌除外）作为起点，按住滑动。”；保留 RULE-01 候选呼吸和合法按下瞬时脉冲
+- 新增非法点击反馈：空闲态按下未翻开格 / 已翻开的天敌格 / 蜜蜂为 0 时，会触发 `tile--invalid-flash` 红闪、toast 提示与 `playInvalidStartSound()` 预留音效，不扣蜜蜂、不进入 `beginRun()`
+- 补充微调：移除 `.tile--start-candidate` 的金色描边，仅保留轻微呼吸动画，避免棋盘上残留固定色框
 
 ## 接口登记
 - 无外部接口
@@ -86,7 +96,9 @@
 - 交互调试入口：`window.demoBoard.beginRun(tileId)`、`window.demoBoard.extendRun(tileId)`、`window.demoBoard.endRun()`、`window.demoBoard.resetGame({ typeMap })`
 - 飞花调试入口：`window.demoBoard.spawnFlowerFlyEffect(tileId)`
 - 飞花状态观测：`window.demoBoard.feedbackState`
-- 反馈相关状态：`window.demoBoard.gameState.isFailFlash`、`toastMessage`、`startPulseTileId`、`isGameOver`
+- 反馈相关状态：`window.demoBoard.gameState.isFailFlash`、`toastMessage`、`startPulseTileId`、`invalidFlashTileIds`、`isGameOver`
+- 起点状态字段：`gameState.currentStartTileId`（拖动中真起点 / 首局 T18 引导）、`gameState.lastEndedTileId`（空闲态视觉锚点）
+- 蜜蜂扣费状态字段：`gameState.lastConsumedBee`（上一轮是否真实消耗蜜蜂）
 - 局配置与状态导出：`window.demoBoard.getRoundConfigSnapshot()`、`window.demoBoard.getStateSnapshot()`
 - 可复现方式：`window.demoBoard.resetGame({ seed: 123456 })`
 - 地块资源入口：`tileAssetMap`（位于 `app.js`）
@@ -106,10 +118,13 @@
 - 自定义光标运行态：`customCursorState`（位于 `app.js`，含 `isActive / pointerId / pendingX / pendingY / rafId / hideTimer`）
 
 ### 资源入口
-- 起点蜜蜂资源入口：`startBeeAsset`（位于 `app.js`，默认指向 `./assets/ui/cursor/cursor-default.png`）
-- 起点蜜蜂跟随配置：`startBeeConfig`（位于 `app.js`，当前含 `followDurationMs / followEasing / offsetY / offsetX`）
-- 起点蜜蜂 DOM 锚点：`#start-marker-overlay`、`#start-bee`、`#start-bee-image`（位于 `index.html`）
-- 起点蜜蜂重对齐函数：`updateStartBeePosition()`（位于 `app.js`，并暴露到 `window.demoBoard`）
+- 起点候选校验函数：`isValidStartCandidate(tileId)`（位于 `app.js`，并暴露到 `window.demoBoard`）
+- 起点显示决策函数：`getDisplayStartTileId()`（位于 `app.js`，并暴露到 `window.demoBoard`）
+- 起点选择音效预留函数：`playStartSelectSound()`（位于 `app.js`，当前为空实现）
+- 非法起点音效预留函数：`playInvalidStartSound()`（位于 `app.js`，当前为空实现）
+- 蜜蜂扣费时机：`completeRun()` 顶部按 `path.length >= 2` 判定并扣费；`beginRun()` 不再预扣
+- 中性 toast 样式：`.toast--info`（位于 `style.css`）
+- 非法点击样式：`.tile--invalid-flash`（位于 `style.css`）
 
 ## 验证记录
 - 已做：
@@ -145,8 +160,11 @@
    22. 接入主背景 BGM 后再次执行 `node --check app.js`，语法通过；路径仅在 `audioAssetMap.bgmMain` 一处出现；自动播放被拦截时降级到首手势启动，不阻塞其它流程
    23. SFX-03 上移翻格音效触发点后再次执行 `node --check app.js`，语法通过；安全分支无论是否首次 reveal 都播一次；enemy 分支不叠音；一次 `extendRun(tileId)` 仅触发一次音效
    24. 接入 FX-02 起点描边与常驻蜜蜂浮层后再次执行 `node --check app.js`，语法通过；`updateStartBeePosition()` 未挂进 `renderAll()`，仅在起点变化与缩放链路后调用
+   25. 接入 RULE-01 自由起点后再次执行 `node --check app.js`，语法通过；`currentStartTileId / lastEndedTileId` 已拆分，成功/失败分支不再自动继承起点，FX-02 蜜蜂定位同步改走 `getDisplayStartTileId()`
+   26. 接入 RULE-02 蜜蜂消耗保护后再次执行 `node --check app.js`，语法通过；`beginRun()` 不再预扣蜜蜂，`completeRun()` 按 `path.length >= 2` 决定是否扣费，并导出 `lastConsumedBee`
+   27. 接入 RULE-03 / FX-03 后再次执行 `node --check app.js`，语法通过；固定起点文案/描边/常驻跟随物已移除，新增非法点击红闪与预留音效接口
 - 未做：浏览器人工打开验收
-- 未验证原因：当前会话未启动浏览器进行视觉检查，也无法在此直接录屏；尚未人工确认飞花轨迹、HUD 吸附弹跳、音效触发时机、移动端缩放后的锚点精度，以及 FX-02 蜜蜂层级 / 描边观感 / 起点迁移动画
+- 未验证原因：当前会话未启动浏览器进行视觉检查，也无法在此直接录屏；尚未人工确认飞花轨迹、HUD 吸附弹跳、音效触发时机，以及 RULE-03 / FX-03 下的候选呼吸、非法点击红闪、移除固定起点 UI 后的首局引导可见性
 - 建议验证步骤：
   1. 直接打开 `index.html`
   2. 连续滑过 3~5 个花朵格，确认飞花按约 0.08 秒错峰发射，形成连续 `Pupupu` 节奏
@@ -159,10 +177,17 @@
    9. 长按移动鼠标，确认自定义光标稳定跟随、中心点对齐判定点
    10. 松手后自定义光标应淡出而非瞬间消失，系统指针恢复
    11. 快速 down/up/down 切换时光标状态切换不卡，不残留
-   12. 拖动采集中确认起点描边与常驻蜜蜂不受 `board--collecting` dim 影响
-   13. 成功 / 失败结算后观察蜜蜂是否约 280ms 平滑移动到新起点或回退起点
-   14. 点击“重新开始”后确认蜜蜂回到 `T18`，窗口缩放或竖屏切换后仍与起点格居中对齐
+   12. 确认棋盘上不再出现固定“起点”字样、固定金色描边与常驻跟随物
+   13. 空闲态合法候选仍保留弱描边呼吸；按下合法候选时应出现短脉冲 + 轻微弹跳
+   14. 点击“重新开始”后确认仍按首局规则只能从 `T18` 起手，但界面不显示固定起点标识
+   15. 第一轮仅允许从 `T18` 起手；首轮结束后确认空闲态任意已翻开的安全格都可直接按下开始新一轮
+   16. 点击未翻开格 / enemy 格 / 蜜蜂耗尽后的任意格时，确认会弹正确 toast、不会扣蜜蜂、不会错误进入拖动态
+   17. 空闲态观察 `tile--start-candidate` 呼吸描边；开始拖动后应立即消失，游戏结束后也不再显示
+   18. 按下起点立即松手，确认 `remainingBees` 不变，toast/status 显示“本轮未采集，蜜蜂未消耗。”
+   19. 拖入至少 1 个相邻格再松手，确认无论采到花或踩到 enemy，`remainingBees` 只减少 1 次
+   20. 将 `remainingBees` 打到 0 时确认仅在真实扣费后的结算点弹出 game-over；连续空按起点不会把蜜蜂扣空
+   21. 点击未翻开格或已翻开的天敌格时，确认地块出现红色闪烁 + fail toast，且不进入 `beginRun()`
 
 ## 协作需求
-- 默认可交给 `B-FIX` 做浏览器实机回归：飞花层级、Bezier 弧线观感、HUD 锚点精度、音效时机、FX-02 起点蜜蜂迁移手感与移动端缩放适配
+- 默认可交给 `B-FIX` 做浏览器实机回归：飞花层级、Bezier 弧线观感、HUD 锚点精度、音效时机、RULE-03 / FX-03 的非法点击红闪、候选呼吸、固定起点 UI 移除后的首局引导可见性
 - 本模块完成后建议回流 `@A-PLN` 做阶段收口；若先做人眼验收，也可先交 `A-ASK` / 用户按上方步骤检查，再决定是否补第二轮爽感优化

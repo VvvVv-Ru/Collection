@@ -97,29 +97,96 @@
 - 天敌格需要在实际踩中或打开调试时再做一次人工确认
 - 原因：这些不属于本次资源替换显示 bug 的根因修复，继续修改会扩大范围
 
-## 新增排查：起点蜜蜂未跟随起点
+## 新增排查：起点跟随浮层未跟随起点
 ### 复现条件
-- 正常开局后完成若干次移动与结算，观察“起点” badge 与蜜蜂浮层位置
-- 当前截图中，`起点` badge 已落在新起点格上，但蜜蜂浮层仍停在上方旧位置附近
+- 正常开局后完成若干次移动与结算，观察起点文本提示与独立浮层位置
+- 当前截图中，起点文本已落在新起点格上，但独立浮层仍停在上方旧位置附近
 
 ### 根因判断
-- 起点 badge 与起点格本体属于同一个 tile DOM，在 `renderBoard()` 重绘时会直接跟随 `gameState.currentStartTileId`
-- 蜜蜂不是 tile 子元素，而是独立的 overlay：`#start-marker-overlay > #start-bee`
-- 它的位置完全依赖 `updateStartBeePosition()` 手动计算 `getBoundingClientRect()` 后再写入 `transform`
+- 起点文本提示与起点格本体属于同一个 tile DOM，在 `renderBoard()` 重绘时会直接跟随 `gameState.currentStartTileId`
+- 漂浮物不是 tile 子元素，而是独立 overlay 浮层
+- 它的位置完全依赖手动计算 `getBoundingClientRect()` 后再写入 `transform`
 - 当前触发点过少：按 B-COD 记录，重定位只放在 `applyResponsiveGameScale()`、`restartGame()`、`completeRun()`，不在每次 `renderAll()` 后更新
-- 同时 `.start-bee` 还带有 `280ms` 的 `transform` transition，因此当起点格立即切换时，badge 会先到位，而蜜蜂会滞后动画移动，视觉上就是“没有跟随起点”
+- 同时该浮层还带有 `280ms` 的 `transform` transition，因此当起点格立即切换时，文本会先到位，而漂浮物会滞后动画移动，视觉上就是“没有跟随起点”
 
 ### 涉及文件
 - `app.js`
-  - `updateStartBeePosition()`
+  - 起点浮层重定位函数
   - `completeRun()`
   - `renderAll()`
 - `style.css`
-  - `.start-bee`
+  - 起点浮层样式
 
 ### 结论
-- 当前问题不在起点状态值本身，`gameState.currentStartTileId` 与 `起点` badge 逻辑大概率是对的
-- 真正的问题在于：蜜蜂采用独立 overlay 手动定位，并且定位刷新时机少、还叠加了过渡动画，所以会和起点 tile 脱节
+- 当前问题不在起点状态值本身，`gameState.currentStartTileId` 与起点文本逻辑大概率是对的
+- 真正的问题在于：漂浮物采用独立 overlay 手动定位，并且定位刷新时机少、还叠加了过渡动画，所以会和起点 tile 脱节
+
+## 本轮新增修复：移除起点金色描边
+### 复现条件
+- 当前盘面在起点格与可选起点候选格周围出现明显金色描边
+- 用户确认当前版本不再需要起点描边效果
+
+### 根因判断
+- `style.css` 中 `.tile--start` 仍保留常驻金色 `box-shadow`
+- `.tile--start-candidate:not(.tile--start)` 仍保留候选起点描边和呼吸动画
+- `.tile--start-pulse .tile__ring` 仍会在某些结算场景下打出额外金色高亮
+
+### 已执行修复
+- 移除 `.tile--start` 的常驻金色描边
+- 移除 `.tile--start-candidate:not(.tile--start)` 的候选描边与呼吸动画
+- 关闭 `.tile--start-pulse .tile__ring` 的金色脉冲效果
+
+### 本轮改了哪些文件
+- `style.css`
+- `B-FIX.md`
+
+### 本轮未修问题
+- 起点 badge 与蜜蜂跟随逻辑尚未修
+- 原因：本轮只按用户要求移除金色描边，不扩大到起点浮层定位逻辑
+
+## 本轮新增修复：删除漂浮蜜蜂
+### 复现条件
+- 当前盘面顶部/起点附近仍出现独立漂浮蜜蜂图标
+- 用户确认该图标当前版本不需要保留
+
+### 根因判断
+- 漂浮蜜蜂不是起点 tile 自带内容，而是单独的 overlay 浮层
+- `app.js` 中仍会初始化并尝试定位这套 UI
+- `style.css` 中仍允许该浮层显示
+
+### 已执行修复
+- 在 `style.css` 中关闭该浮层显示
+- 在 `app.js` 中把起点漂浮物初始化与重定位逻辑改为收起/隐藏，不再加载图片、不再跟随起点
+- 调试入口改为空操作，避免继续把该 UI 拉起
+
+### 本轮改了哪些文件
+- `app.js`
+- `style.css`
+- `B-FIX.md`
+
+### 本轮未修问题
+- 未删除 `index.html` 中对应 DOM 结构
+- 原因：当前只做最小移除，优先保证功能链路不受影响；现阶段已不会显示，也不会再参与定位
+
+## 本轮新增修复：移除“起点”文本与底框
+### 复现条件
+- 当前起点格右上仍显示“起点”文本及白色圆角底框
+- 用户确认当前版本不需要该文案提示
+
+### 根因判断
+- `app.js` 的 `createTileElement()` 在 `isStart` 时仍会拼接起点文本节点
+- 因此即使已经移除金色描边和漂浮蜜蜂，起点格仍会保留文字 badge
+
+### 已执行修复
+- 删除 `createTileElement()` 中的起点文本 DOM 输出
+
+### 本轮改了哪些文件
+- `app.js`
+- `B-FIX.md`
+
+### 本轮未修问题
+- `style.css` 中对应文本徽标样式定义仍保留，但当前已无起点文本 DOM 引用
+- 原因：本轮先做最小移除，避免连带影响其他潜在 badge 用途
 
 ## 给 B-COD 的提醒
 - 不要继续在 `.tile__inner` 上叠加旧占位风格描边

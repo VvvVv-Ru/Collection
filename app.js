@@ -22,7 +22,7 @@ const rowSlots = [
 ];
 const startTileId = "T18";
 const initialBeeCount = 5;
-const initialStatusText = "按住当前起点并滑动，松手后结算本轮。";
+const initialStatusText = "选择任意已翻开的格子（天敌除外）作为起点，按住滑动。";
 const animationDurations = {
   failFlash: 420,
   shake: 420,
@@ -46,13 +46,6 @@ const flowerFlyAsset = "./assets/effects/flower-fly.svg";
 const tileRevealSoundAsset = "./assets/audio/sfx/tile-reveal.wav";
 const tileEnemyHitSoundAsset = "./assets/audio/sfx/tile-enemy-hit.wav";
 const customCursorAsset = "./assets/ui/cursor/cursor-default.png";
-const startBeeAsset = "./assets/ui/cursor/cursor-default.png";
-const startBeeConfig = {
-  followDurationMs: 280,
-  followEasing: "cubic-bezier(0.22, 1, 0.36, 1)",
-  offsetY: -28,
-  offsetX: 0,
-};
 const audioAssetMap = {
   bgmMain: "./assets/audio/bgm/bgm-main.mp3",
 };
@@ -288,6 +281,7 @@ function createInitialGameState(options = {}) {
 
   return {
     currentStartTileId: startTileId,
+    lastEndedTileId: startTileId,
     currentSeed: seed,
     roundConfigSource,
     roundConfig: { ...typeMap },
@@ -300,10 +294,12 @@ function createInitialGameState(options = {}) {
     currentPath: [],
     currentRunHoney: 0,
     lastSafeTileId: startTileId,
+    lastConsumedBee: false,
     hasHitEnemy: false,
     statusText: initialStatusText,
     lastOutcome: null,
     isFailFlash: false,
+    invalidFlashTileIds: [],
     shakeTileIds: [],
     toastMessage: "",
     toastTone: "",
@@ -324,9 +320,6 @@ const dom = hasDom
       boardViewport: document.getElementById("board-viewport"),
       board: document.getElementById("board"),
       fxOverlay: document.getElementById("fx-overlay"),
-      startMarkerOverlay: document.getElementById("start-marker-overlay"),
-      startBee: document.getElementById("start-bee"),
-      startBeeImage: document.getElementById("start-bee-image"),
       totalHoney: document.getElementById("total-honey"),
       roundHoney: document.getElementById("round-honey"),
       roundHoneyCard: document.getElementById("round-honey-card"),
@@ -414,6 +407,17 @@ function showToast(message, tone = "") {
   }, animationDurations.toast);
 }
 
+function triggerStartPulse(tileId) {
+  gameState.startPulseTileId = tileId;
+
+  scheduleFeedback(() => {
+    if (gameState.startPulseTileId === tileId) {
+      gameState.startPulseTileId = null;
+      triggerRenderOnly();
+    }
+  }, animationDurations.startPulse);
+}
+
 function triggerFailFeedback(tileIds = []) {
   gameState.isFailFlash = true;
   gameState.shakeTileIds = [...tileIds];
@@ -431,14 +435,41 @@ function triggerFailFeedback(tileIds = []) {
   }, animationDurations.shake);
 }
 
-function triggerSuccessFeedback(tileId, gainedHoney) {
+function playInvalidStartSound() {
+  // RULE-03 预留：后续可接入 assets/audio/sfx/invalid-start.wav
+}
+
+function triggerInvalidStartFeedback(tileId, options = {}) {
+  const {
+    message = "不能从这里出发，请选择已翻开的非天敌格",
+    tone = "fail",
+  } = options;
+
+  playInvalidStartSound();
+  showToast(message, tone);
+
+  if (!tileId) {
+    return;
+  }
+
+  gameState.invalidFlashTileIds = Array.from(new Set([...gameState.invalidFlashTileIds, tileId]));
+  triggerRenderOnly();
+
+  scheduleFeedback(() => {
+    gameState.invalidFlashTileIds = gameState.invalidFlashTileIds.filter((id) => id !== tileId);
+    triggerRenderOnly();
+  }, 360);
+}
+
+function triggerSuccessFeedback(tileId, gainedHoney, options = {}) {
+  const { message = gainedHoney > 0 ? `结算成功 +${gainedHoney}` : "采集成功", tone = "success" } = options;
+
   if (gainedHoney > 0) {
     gameState.totalHoneyPulse = true;
   }
 
-  gameState.startPulseTileId = tileId;
-  showToast(gainedHoney > 0 ? `结算成功 +${gainedHoney}` : "采集成功", "success");
-  triggerRenderOnly();
+  triggerStartPulse(tileId);
+  showToast(message, tone);
 
   if (gainedHoney > 0) {
     scheduleFeedback(() => {
@@ -447,12 +478,6 @@ function triggerSuccessFeedback(tileId, gainedHoney) {
     }, animationDurations.honeyPulse);
   }
 
-  scheduleFeedback(() => {
-    if (gameState.startPulseTileId === tileId) {
-      gameState.startPulseTileId = null;
-      triggerRenderOnly();
-    }
-  }, animationDurations.startPulse);
 }
 
 function updateGameOverState() {
@@ -477,6 +502,8 @@ function getRoundConfigSnapshot() {
 function getStateSnapshot() {
   return {
     currentStartTileId: gameState.currentStartTileId,
+    lastEndedTileId: gameState.lastEndedTileId,
+    lastConsumedBee: gameState.lastConsumedBee,
     remainingBees: gameState.remainingBees,
     totalHoney: gameState.totalHoney,
     roundHoney: gameState.roundHoney,
@@ -555,40 +582,6 @@ function resetCollectionFeedback(options = {}) {
   }
 
   dom?.roundHoneyCard?.classList.remove("hud-card--collect");
-}
-
-function initStartBeeOverlay() {
-  if (!dom?.startBee || !dom.startBeeImage) {
-    return;
-  }
-
-  dom.startBee.style.transition = `transform ${startBeeConfig.followDurationMs}ms ${startBeeConfig.followEasing}`;
-  if (dom.startBeeImage.getAttribute("src") !== startBeeAsset) {
-    dom.startBeeImage.src = startBeeAsset;
-  }
-}
-
-function updateStartBeePosition() {
-  if (!dom?.startMarkerOverlay || !dom.startBee) {
-    return;
-  }
-
-  const currentStartTileId = gameState.currentStartTileId;
-  const tileElement = currentStartTileId
-    ? dom.board?.querySelector(`[data-tile-id="${currentStartTileId}"]`)
-    : null;
-
-  if (!tileElement) {
-    dom.startBee.style.transform = "translate(-9999px, -9999px) translate(-50%, -100%)";
-    return;
-  }
-
-  const tileRect = tileElement.getBoundingClientRect();
-  const overlayRect = dom.startMarkerOverlay.getBoundingClientRect();
-  const x = tileRect.left + tileRect.width / 2 - overlayRect.left + startBeeConfig.offsetX;
-  const y = tileRect.top + tileRect.height / 2 - overlayRect.top + startBeeConfig.offsetY;
-
-  dom.startBee.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
 }
 
 function getOverlayRelativePointFromRect(rect, anchorY = 0.5) {
@@ -1039,7 +1032,6 @@ function applyResponsiveGameScale() {
   const topOffset = isMobileViewport ? 0 : Math.max(0, (availableHeight - stageHeight * scale) / 2);
   dom.gameStage.style.top = `${topOffset}px`;
   dom.gameStage.style.transform = `translateX(-50%) scale(${scale})`;
-  updateStartBeePosition();
 }
 
 function getTileTypeLabel(type) {
@@ -1068,6 +1060,19 @@ function getCurrentTileId() {
   }
 
   return gameState.currentPath[gameState.currentPath.length - 1];
+}
+
+function isValidStartCandidate(tileId) {
+  const tileState = gameState.tileStateMap[tileId];
+  return !!tileState && tileState.revealed && (tileState.type === "flower" || tileState.type === "empty");
+}
+
+function getDisplayStartTileId() {
+  return gameState.currentStartTileId ?? gameState.lastEndedTileId ?? null;
+}
+
+function playStartSelectSound() {
+  // RULE-01 预留：后续可接入 assets/audio/sfx/select-start.wav
 }
 
 function canEnterTile(tileId) {
@@ -1135,11 +1140,14 @@ function renderHud() {
 function createTileElement(tile) {
   const state = gameState.tileStateMap[tile.id];
   const isRevealed = state.revealed;
-  const isStart = tile.id === gameState.currentStartTileId;
+  const displayStartTileId = getDisplayStartTileId();
+  const isStart = tile.id === displayStartTileId;
   const isInPath = gameState.currentPath.includes(tile.id);
   const isEnemy = isRevealed && state.type === "enemy";
   const isShaking = gameState.shakeTileIds.includes(tile.id);
+  const isInvalidFlashing = gameState.invalidFlashTileIds.includes(tile.id);
   const isStartPulse = tile.id === gameState.startPulseTileId;
+  const isStartCandidate = !gameState.isDragging && !gameState.isGameOver && isValidStartCandidate(tile.id);
   const visibleDangerCount = getVisibleDangerCount(tile.id);
   const tileAsset = getTileAsset(state);
   const ariaState = isRevealed
@@ -1154,7 +1162,9 @@ function createTileElement(tile) {
     "tile",
     isRevealed ? "tile--revealed" : "tile--locked",
     isStart ? "tile--start" : "",
+    isStartCandidate ? "tile--start-candidate" : "",
     isStartPulse ? "tile--start-pulse" : "",
+    isInvalidFlashing ? "tile--invalid-flash" : "",
     isInPath ? "tile--path" : "",
     isEnemy ? "tile--enemy" : "",
     isShaking ? "tile--shake" : "",
@@ -1181,7 +1191,7 @@ function createTileElement(tile) {
   button.dataset.neighbors = state.neighbors.join(",");
   button.setAttribute(
     "aria-label",
-    `${tile.id}，${isStart ? "当前起点，" : ""}${ariaState}${isInPath ? "，已在当前路径中" : ""}`
+    `${tile.id}，${isStartCandidate ? "可作为起点，" : ""}${ariaState}${isInPath ? "，已在当前路径中" : ""}`
   );
 
   button.innerHTML = `
@@ -1196,7 +1206,6 @@ function createTileElement(tile) {
         : `<span class="tile__danger" aria-hidden="true">${visibleDangerCount}</span>`
     }
     <span class="tile__meta">r${tile.row + 1} · c${tile.col + 1}</span>
-    ${isStart ? '<span class="tile__badge">起点</span>' : ""}
   `;
 
   return button;
@@ -1239,7 +1248,6 @@ function restartGame(options = {}) {
     roundConfig: getRoundConfigSnapshot(),
   });
   renderAll();
-  updateStartBeePosition();
   syncDebugHandle();
   return gameState;
 }
@@ -1257,7 +1265,13 @@ function beginRun(tileId, pointerId = null) {
     return { ok: false, reason: "no-bees" };
   }
 
-  if (tileId !== gameState.currentStartTileId) {
+  if (gameState.currentStartTileId === null) {
+    if (!isValidStartCandidate(tileId)) {
+      gameState.statusText = "不能从这里出发，请选择已翻开的非天敌格。";
+      renderHud();
+      return { ok: false, reason: "invalid-start" };
+    }
+  } else if (tileId !== gameState.currentStartTileId) {
     gameState.statusText = `请从当前起点 ${gameState.currentStartTileId} 开始。`;
     renderHud();
     return { ok: false, reason: "invalid-start" };
@@ -1265,7 +1279,7 @@ function beginRun(tileId, pointerId = null) {
 
   resetCollectionFeedback({ resetRunToken: true, clearFlights: true, resetDisplay: true });
   primeCollectAudio();
-  gameState.remainingBees -= 1;
+  gameState.currentStartTileId = tileId;
   gameState.isDragging = true;
   gameState.dragPointerId = pointerId;
   gameState.currentPath = [tileId];
@@ -1274,7 +1288,8 @@ function beginRun(tileId, pointerId = null) {
   gameState.lastSafeTileId = tileId;
   gameState.hasHitEnemy = false;
   gameState.lastOutcome = null;
-  gameState.startPulseTileId = null;
+  playStartSelectSound();
+  triggerStartPulse(tileId);
   gameState.statusText = "采集中：滑入相邻格，松手后结算。";
   logEvent("新一轮开始", {
     currentStartTileId: tileId,
@@ -1291,31 +1306,55 @@ function completeRun(outcome) {
   }
 
   const path = [...gameState.currentPath];
+  const pathLength = path.length;
+  const consumedBee = pathLength >= 2;
   const nextStartTileId = gameState.lastSafeTileId;
 
+  gameState.lastConsumedBee = consumedBee;
+
+  if (consumedBee) {
+    gameState.remainingBees -= 1;
+  } else {
+    logEvent("本轮蜜蜂未消耗", {
+      outcome,
+      path,
+      pathLength,
+      remainingBees: gameState.remainingBees,
+    });
+  }
+
   if (outcome === "failure") {
-    gameState.currentStartTileId = nextStartTileId;
+    gameState.lastEndedTileId = nextStartTileId;
+    gameState.currentStartTileId = null;
     gameState.currentRunHoney = 0;
     resetCollectionFeedback({ resetRunToken: true, clearFlights: true, resetDisplay: true });
-    gameState.statusText = `踩到天敌，本轮失败；下一轮从 ${nextStartTileId} 继续。`;
+    gameState.statusText = consumedBee ? "踩到天敌，本轮失败。" : "本轮失败，蜜蜂未消耗。";
+    showToast(gameState.statusText, consumedBee ? "fail" : "info");
     logEvent("本轮失败结算", {
       path,
+      pathLength,
+      consumedBee,
       nextStartTileId,
       totalHoney: gameState.totalHoney,
     });
   } else {
     const gainedHoney = gameState.currentRunHoney;
     gameState.totalHoney += gainedHoney;
-    gameState.currentStartTileId = nextStartTileId;
+    gameState.lastEndedTileId = nextStartTileId;
+    gameState.currentStartTileId = null;
     gameState.currentRunHoney = 0;
     queueRoundHoneyReset();
-    gameState.statusText =
-      gainedHoney > 0
-        ? `本轮成功，获得 ${gainedHoney} 花蜜；下一轮起点 ${nextStartTileId}。`
-        : `本轮成功，未采到花蜜；下一轮起点 ${nextStartTileId}。`;
-    triggerSuccessFeedback(nextStartTileId, gainedHoney);
+    gameState.statusText = consumedBee
+      ? `本轮成功，获得 ${gainedHoney} 花蜜。`
+      : "本轮未采集，蜜蜂未消耗。";
+    triggerSuccessFeedback(nextStartTileId, gainedHoney, {
+      message: gameState.statusText,
+      tone: consumedBee ? "success" : "info",
+    });
     logEvent("本轮成功结算", {
       path,
+      pathLength,
+      consumedBee,
       gainedHoney,
       totalHoney: gameState.totalHoney,
       nextStartTileId,
@@ -1333,7 +1372,6 @@ function completeRun(outcome) {
     updateGameOverState();
   }
   renderAll();
-  updateStartBeePosition();
 
   return {
     ok: true,
@@ -1428,9 +1466,32 @@ function handlePointerDown(event) {
     return;
   }
 
-  const result = beginRun(tileElement.dataset.tileId, event.pointerId);
+  const tileId = tileElement.dataset.tileId;
+
+  if (gameState.isGameOver || gameState.remainingBees <= 0) {
+    gameState.isGameOver = true;
+    gameState.statusText = `游戏结束 · 总花蜜：${gameState.totalHoney}`;
+    triggerInvalidStartFeedback(tileId, { message: "游戏结束", tone: "game-over" });
+    return;
+  }
+
+  if (gameState.currentStartTileId === null && !isValidStartCandidate(tileId)) {
+    gameState.statusText = "不能从这里出发，请选择已翻开的非天敌格。";
+    triggerInvalidStartFeedback(tileId);
+    return;
+  }
+
+  const result = beginRun(tileId, event.pointerId);
 
   if (!result.ok) {
+    if (result.reason === "invalid-start") {
+      triggerInvalidStartFeedback(tileId, {
+        message:
+          gameState.currentStartTileId === null
+            ? "不能从这里出发，请选择已翻开的非天敌格"
+            : `请从当前起点 ${gameState.currentStartTileId} 开始`,
+      });
+    }
     return;
   }
 
@@ -1708,16 +1769,14 @@ function syncDebugHandle() {
     createInitialGameState,
     hasRevealedNeighbor,
     getVisibleDangerCount,
+    isValidStartCandidate,
+    getDisplayStartTileId,
+    playStartSelectSound,
+    playInvalidStartSound,
     beginRun,
     extendRun,
     endRun,
     spawnFlowerFlyEffect,
-    setStartBeeAsset(path) {
-      if (dom?.startBeeImage) {
-        dom.startBeeImage.src = path;
-      }
-    },
-    updateStartBeePosition,
     getRoundConfigSnapshot,
     getStateSnapshot,
     resetGame(options = {}) {
@@ -1862,7 +1921,6 @@ function init() {
   validateLayoutConfig();
   computeBoardSize();
   attachEventListeners();
-  initStartBeeOverlay();
   restartGame();
   initBgm();
 }

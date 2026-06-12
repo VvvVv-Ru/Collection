@@ -71,14 +71,6 @@ body::before {
   overflow: visible;
 }
 
-.start-marker-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 12;
-  overflow: visible;
-}
-
 .game-stage {
   position: absolute;
   top: 0;
@@ -261,11 +253,10 @@ body::before {
 }
 
 .tile--start {
-  border-radius: 28px;
-  box-shadow:
-    0 0 0 3px #ffd34d,
-    0 0 0 5px rgba(255, 180, 40, 0.55),
-    0 0 14px rgba(255, 180, 40, 0.45);
+}
+
+.tile--start-candidate:not(.tile--start) {
+  animation: start-candidate-breathe 2.2s ease-in-out infinite;
 }
 
 .tile__inner,
@@ -329,6 +320,10 @@ body::before {
   animation: start-pulse 0.8s ease;
 }
 
+.tile--start-pulse .tile__inner {
+  animation: tile-start-bounce 120ms ease-out;
+}
+
 .tile--path .tile__inner {
   transform: translateY(-3px);
   box-shadow: none;
@@ -344,22 +339,14 @@ body::before {
   animation: tile-shake 0.4s ease;
 }
 
-.tile__badge,
+.tile--invalid-flash {
+  animation: tile-invalid-flash 360ms ease-out;
+}
+
 .tile__danger,
 .tile__enemy-mark {
   position: absolute;
   z-index: 1;
-}
-
-.tile__badge {
-  top: 10px;
-  right: 12px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-  color: #714b28;
-  font-size: 11px;
-  font-weight: 800;
 }
 
 .tile__danger {
@@ -572,29 +559,6 @@ body.is-dragging-cursor * {
   pointer-events: none;
 }
 
-.start-bee {
-  position: absolute;
-  left: 0;
-  top: 0;
-  transform: translate(-9999px, -9999px) translate(-50%, -100%);
-  transform-origin: center bottom;
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
-  will-change: transform;
-  filter: drop-shadow(0 8px 14px rgba(144, 84, 18, 0.22));
-}
-
-.start-bee__image {
-  display: block;
-  width: 44px;
-  height: 44px;
-  animation: start-bee-idle 1.8s ease-in-out infinite;
-  transform-origin: center bottom;
-  user-select: none;
-  -webkit-user-drag: none;
-  pointer-events: none;
-}
-
 .toast--visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
@@ -606,6 +570,10 @@ body.is-dragging-cursor * {
 
 .toast--success {
   background: rgba(88, 131, 34, 0.94);
+}
+
+.toast--info {
+  background: rgba(95, 105, 128, 0.92);
 }
 
 .toast--game-over {
@@ -692,11 +660,41 @@ body.is-dragging-cursor * {
   0% {
     transform: scale(1);
   }
-  35% {
+  15% {
+    transform: scale(1.06);
+  }
+  30% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes tile-start-bounce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
     transform: scale(1.06);
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes tile-invalid-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 60, 60, 0);
+    filter: brightness(1);
+  }
+  30% {
+    box-shadow: 0 0 0 4px rgba(255, 60, 60, 0.65);
+    filter: brightness(1.15) saturate(1.2);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 60, 60, 0);
+    filter: brightness(1);
   }
 }
 
@@ -753,15 +751,13 @@ body.is-dragging-cursor * {
   }
 }
 
-@keyframes start-bee-idle {
-  0% {
-    transform: translateY(0) rotate(-2deg);
+@keyframes start-candidate-breathe {
+  0%,
+  100% {
+    filter: brightness(1);
   }
   50% {
-    transform: translateY(-3px) rotate(2deg);
-  }
-  100% {
-    transform: translateY(0) rotate(-2deg);
+    filter: brightness(1.12);
   }
 }
 
