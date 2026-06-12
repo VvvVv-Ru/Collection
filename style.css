@@ -424,6 +424,39 @@ body::before {
   z-index: 20;
 }
 
+.bgm-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid rgba(191, 126, 36, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 247, 220, 0.92);
+  color: #5f3c1f;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  z-index: 1000;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bgm-toggle__icon {
+  display: none;
+}
+
+.bgm-toggle[data-bgm="on"] .bgm-toggle__icon[data-state="on"] {
+  display: inline;
+}
+
+.bgm-toggle[data-bgm="off"] .bgm-toggle__icon[data-state="off"] {
+  display: inline;
+}
+
 .custom-cursor {
   position: fixed;
   left: 0;

@@ -21,7 +21,7 @@ const rowSlots = [
   [3],
 ];
 const startTileId = "T18";
-const initialBeeCount = 10;
+const initialBeeCount = 5;
 const initialStatusText = "按住当前起点并滑动，松手后结算本轮。";
 const animationDurations = {
   failFlash: 420,
@@ -46,6 +46,13 @@ const flowerFlyAsset = "./assets/effects/flower-fly.svg";
 const tileRevealSoundAsset = "./assets/audio/sfx/tile-reveal.wav";
 const tileEnemyHitSoundAsset = "./assets/audio/sfx/tile-enemy-hit.wav";
 const customCursorAsset = "./assets/ui/cursor/cursor-default.png";
+const audioAssetMap = {
+  bgmMain: "./assets/audio/bgm/bgm-main.mp3",
+};
+const bgmConfig = {
+  defaultVolume: 0.3,
+  storageKey: "honey-demo:bgm-muted",
+};
 const tileTypeCounts = {
   enemy: 3,
   flower: 8,
@@ -924,17 +931,11 @@ function queueRoundHoneyReset() {
   maybeResetRoundHoneyAfterArrival();
 }
 
-function setTileRevealed(tileId, options = {}) {
-  const { silent = false } = options;
+function setTileRevealed(tileId) {
   const tileState = gameState.tileStateMap[tileId];
-  const wasRevealed = tileState.revealed;
   tileState.revealed = true;
   tileState.unlocked = true;
   gameState.revealedTiles.add(tileId);
-
-  if (!wasRevealed && !silent) {
-    playTileRevealSound();
-  }
 }
 
 function isSafeTileType(type) {
@@ -1308,7 +1309,7 @@ function extendRun(tileId) {
   gameState.currentPath.push(tileId);
 
   if (tileState.type === "enemy") {
-    setTileRevealed(tileId, { silent: true });
+    setTileRevealed(tileId);
     playTileEnemyHitSound();
     gameState.hasHitEnemy = true;
     gameState.statusText = `踩到天敌 ${tileId}，本轮花蜜清零。`;
@@ -1332,6 +1333,8 @@ function extendRun(tileId) {
   } else {
     gameState.statusText = `进入安全格 ${tileId}。`;
   }
+
+  playTileRevealSound();
 
   logEvent("路径加入格子", {
     tileId,
@@ -1670,11 +1673,144 @@ function syncDebugHandle() {
   };
 }
 
+const bgmState = {
+  audio: null,
+  button: null,
+  muted: false,
+  hasStarted: false,
+  pendingStart: false,
+};
+
+function readBgmMutedPref() {
+  try {
+    if (typeof localStorage === "undefined") {
+      return false;
+    }
+    return localStorage.getItem(bgmConfig.storageKey) === "1";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function writeBgmMutedPref(muted) {
+  try {
+    if (typeof localStorage === "undefined") {
+      return;
+    }
+    localStorage.setItem(bgmConfig.storageKey, muted ? "1" : "0");
+  } catch (_error) {
+    // 忽略写入失败
+  }
+}
+
+function updateBgmButtonView() {
+  if (!bgmState.button) {
+    return;
+  }
+  bgmState.button.dataset.bgm = bgmState.muted ? "off" : "on";
+  bgmState.button.setAttribute("aria-pressed", bgmState.muted ? "true" : "false");
+}
+
+function tryStartBgm() {
+  if (!bgmState.audio || bgmState.hasStarted) {
+    return;
+  }
+
+  const playResult = bgmState.audio.play();
+  if (playResult && typeof playResult.then === "function") {
+    playResult
+      .then(() => {
+        bgmState.hasStarted = true;
+        bgmState.pendingStart = false;
+      })
+      .catch(() => {
+        // 自动播放被拦截，等待首次用户交互
+        bgmState.pendingStart = true;
+        attachBgmFirstGestureListeners();
+      });
+  } else {
+    bgmState.hasStarted = true;
+  }
+}
+
+function handleBgmFirstGesture() {
+  if (!bgmState.audio) {
+    return;
+  }
+  detachBgmFirstGestureListeners();
+  bgmState.pendingStart = false;
+  bgmState.hasStarted = false;
+  tryStartBgm();
+}
+
+function attachBgmFirstGestureListeners() {
+  if (!hasDom) {
+    return;
+  }
+  window.addEventListener("pointerdown", handleBgmFirstGesture, { once: true });
+  window.addEventListener("keydown", handleBgmFirstGesture, { once: true });
+  window.addEventListener("touchstart", handleBgmFirstGesture, { once: true, passive: true });
+}
+
+function detachBgmFirstGestureListeners() {
+  if (!hasDom) {
+    return;
+  }
+  window.removeEventListener("pointerdown", handleBgmFirstGesture);
+  window.removeEventListener("keydown", handleBgmFirstGesture);
+  window.removeEventListener("touchstart", handleBgmFirstGesture);
+}
+
+function setBgmMuted(muted) {
+  bgmState.muted = !!muted;
+  if (bgmState.audio) {
+    bgmState.audio.muted = bgmState.muted;
+    if (!bgmState.muted && !bgmState.hasStarted) {
+      tryStartBgm();
+    }
+  }
+  writeBgmMutedPref(bgmState.muted);
+  updateBgmButtonView();
+}
+
+function initBgm() {
+  if (!hasDom || typeof Audio === "undefined") {
+    return;
+  }
+
+  try {
+    const audio = new Audio(audioAssetMap.bgmMain);
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = bgmConfig.defaultVolume;
+    bgmState.audio = audio;
+  } catch (_error) {
+    bgmState.audio = null;
+  }
+
+  bgmState.button = document.getElementById("bgm-toggle");
+  bgmState.muted = readBgmMutedPref();
+  if (bgmState.audio) {
+    bgmState.audio.muted = bgmState.muted;
+  }
+  updateBgmButtonView();
+
+  if (bgmState.button) {
+    bgmState.button.addEventListener("click", (event) => {
+      event.preventDefault();
+      setBgmMuted(!bgmState.muted);
+    });
+  }
+
+  tryStartBgm();
+}
+
 function init() {
   validateLayoutConfig();
   computeBoardSize();
   attachEventListeners();
   restartGame();
+  initBgm();
 }
 
 init();

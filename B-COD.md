@@ -1,10 +1,10 @@
 # B-COD 记录
 
 ## Claim
-- 任务 ID：B-COD-DEMO-FEEDBACK-002
-- 当前 claim：模块《长按状态自定义光标反馈》
-- 范围：长按时隐藏系统光标，独立 DOM 跟随层呈现自定义光标，含缩放弹出与松手淡出；不改现有滑动采集主流程
-- 说明：上一轮 `B-COD-DEMO-FEEDBACK-001` 已闭环；本轮在其基础上叠加桌面端自定义光标反馈，暂不做移动端触控适配
+- 任务 ID：B-COD-DEMO-AUDIO-001
+- 当前 claim：模块《主背景 BGM 接入》
+- 范围：接入 `assets/audio/bgm/bgm-main.mp3` 主背景音乐、自动循环、低音量默认、首手势降级启动、加一个静音切换按钮；不改其它玩法、音效与光标系统
+- 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）
 
 ## 实现记录
 - 新建最小静态前端文件：`index.html`、`style.css`、`app.js`
@@ -65,6 +65,9 @@
 - 配套 CSS：`.board .tile { transition: filter 0.28s ease, opacity 0.28s ease; }`；`.board--collecting .tile:not(.tile--path):not(.tile--start) { filter: brightness(0.55) saturate(0.75); }`；起点与路径自动豁免
 - 与既有反馈隔离：`tile--shake` / `tile--start-pulse` 使用 transform，与 filter 不冲突；`.board--fail-flash` 走 box-shadow 关键帧，亦不动 filter；飞花 `#fx-overlay` 在 board 外不受影响
 - 注意：现版 `renderBoard()` 每次都会 `innerHTML = ""` 全量重建 tile DOM，CSS transition 在新挂载节点上不会播过渡；上述 dim 规则当前会以"瞬切"形态生效。如需严格走 0.28s 过渡，需要后续改为 diff 渲染或在 dim 触发时延后挂 `board--collecting`，留给 B-FIX 视觉回归阶段评估
+- 新增主背景 BGM：常量 `audioAssetMap.bgmMain` 指向 `assets/audio/bgm/bgm-main.mp3`；`bgmConfig.defaultVolume = 0.45`；`initBgm()` 在 `init()` 末尾启动
+- BGM 启动策略：先尝试 `audio.play()`；自动播放被拦截时挂 `pointerdown / keydown / touchstart` 一次性首手势监听，由 `handleBgmFirstGesture()` 接管启动
+- 静音按钮：常驻 `#bgm-toggle`（右上），用 `data-bgm="on|off"` 控制图标，状态写入 `localStorage["honey-demo:bgm-muted"]`，刷新后保留
 - 新增长按自定义光标：常驻 DOM `#custom-cursor`，外层用 `transform: translate3d` 跟随鼠标位置，内层 `.custom-cursor__inner` 独立做 pop / fade 动画，避免与位置 transform 冲突
 - 自定义光标只在 `pointerType==='mouse'` 且 `button===0` 时启用，桌面端长按生效，触控不介入
 - 按下时给 `body` 加 `is-dragging-cursor` class 强制 `cursor: none !important`；松手时移除并播放淡出动画
@@ -85,12 +88,16 @@
 - 地块资源入口：`tileAssetMap`（位于 `app.js`）
 - 飞花资源入口：`flowerFlyAsset`（位于 `app.js`，默认指向 `assets/effects/flower-fly.svg`）
 - 翻格音效资源入口：`tileRevealSoundAsset`（位于 `app.js`，默认指向 `assets/audio/sfx/tile-reveal.wav`）
-- 翻格音效函数：`playTileRevealSound()` / `primeTileRevealSound()`（位于 `app.js`），在 `setTileRevealed()` 内首次解锁时触发一次，每次 `cloneNode` 播放支持快速连翻
+- 翻格音效函数：`playTileRevealSound()` / `primeTileRevealSound()`（位于 `app.js`），每次 `cloneNode` 播放支持快速连翻
+- SFX-03 扩展：翻格音效触发位置已从 `setTileRevealed()` 内部上移到 `extendRun()` 安全分支结尾；走入已 reveal 的 `flower / empty` 也会播一次同音；`setTileRevealed()` 恢复为纯状态写入函数，不再附带音效；enemy 分支沿用 SFX-02 方案 A，仅播 enemy-hit 音，不叠加 reveal 音
 - 撞天敌音效资源入口：`tileEnemyHitSoundAsset`（位于 `app.js`，默认指向 `assets/audio/sfx/tile-enemy-hit.wav`）
 - 撞天敌音效函数：`playTileEnemyHitSound()` / `primeTileEnemyHitSound()`（位于 `app.js`），在 `extendRun()` 的 enemy 分支内 `setTileRevealed(tileId, { silent: true })` 之后立即调用，确保一次失败仅一声
-- `setTileRevealed(tileId, options)` 新增可选参数 `{ silent }`：enemy 分支传 `silent: true` 跳过 reveal 音效，避免与 enemy-hit 音效叠音（方案 A）
+- `setTileRevealed(tileId)` 现已恢复为纯状态写入（SFX-03 调整后），音效改由 `extendRun()` 的安全分支结尾统一触发；enemy 分支不再依赖 `silent` 参数，仅靠不调用 `playTileRevealSound()` 来避免叠音
 - 自定义光标 DOM 锚点：`#custom-cursor`（位于 `index.html`，内嵌 `.custom-cursor__inner > img`）
 - 自定义光标资源入口：`customCursorAsset`（位于 `app.js`，默认指向 `assets/ui/cursor/cursor-default.png`），由 `attachCustomCursorListeners()` 在初始化时单点写入 `#custom-cursor-image.src`，HTML 不再写死路径
+- BGM 资源入口：`audioAssetMap.bgmMain`（位于 `app.js`，默认指向 `assets/audio/bgm/bgm-main.mp3`），HTML 不写死路径
+- BGM 控制函数：`initBgm()` / `tryStartBgm()` / `setBgmMuted(muted)` / `handleBgmFirstGesture()`；运行态：`bgmState.audio / muted / hasStarted / pendingStart`
+- BGM 静音偏好：`localStorage["honey-demo:bgm-muted"]`（`"1"` 静音，`"0"` 非静音）；常量 `bgmConfig.storageKey` 单点维护
 - 自定义光标控制函数：`showCustomCursor(event)` / `hideCustomCursor()` / `attachCustomCursorListeners()`（位于 `app.js`）
 - 自定义光标运行态：`customCursorState`（位于 `app.js`，含 `isActive / pointerId / pendingX / pendingY / rafId / hideTimer`）
 
@@ -125,6 +132,8 @@
   19. 接入撞天敌音效后再次执行 `node --check app.js`，语法通过；enemy 分支用 `setTileRevealed(tileId, { silent: true })` 静音 reveal、再单独播放 enemy-hit，避免叠音；安全/花格 reveal 音效不被抑制
   20. 切换自定义光标资源到 `assets/ui/cursor/cursor-default.png` 后再次执行 `node --check app.js`，语法通过；路径仅在 `customCursorAsset` 常量出现一次，HTML 中 `src` 由 JS 初始化时写入
   21. 接入采集范围高亮后再次执行 `node --check app.js`，语法通过；`board--collecting` 仅在 `renderBoard()` 内 `gameState.isDragging` 真值时挂上；未新增逐格 JS 样式写入；未改动 `createTileElement` 的 class 列表
+  22. 接入主背景 BGM 后再次执行 `node --check app.js`，语法通过；路径仅在 `audioAssetMap.bgmMain` 一处出现；自动播放被拦截时降级到首手势启动，不阻塞其它流程
+  23. SFX-03 上移翻格音效触发点后再次执行 `node --check app.js`，语法通过；安全分支无论是否首次 reveal 都播一次；enemy 分支不叠音；一次 `extendRun(tileId)` 仅触发一次音效
 - 未做：浏览器人工打开验收
 - 未验证原因：当前会话未启动浏览器进行视觉检查，也无法在此直接录屏；尚未人工确认飞花轨迹、HUD 吸附弹跳、音效触发时机、移动端缩放后的锚点精度
 - 建议验证步骤：
