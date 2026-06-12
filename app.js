@@ -42,9 +42,19 @@ const collectFeedbackConfig = {
   hudRollDuration: 180,
   hudResetDelay: 120,
 };
+const comboConfig = {
+  timeoutMs: 2500,
+  visibleMs: 400,
+  fadeOutMs: 600,
+  followDurationMs: 320,
+  followEasing: "cubic-bezier(0.22, 1, 0.36, 1)",
+  offsetY: -8,
+  soundThrottleMs: 90,
+};
 const flowerFlyAsset = "./assets/effects/flower-fly.svg";
 const tileRevealSoundAsset = "./assets/audio/sfx/tile-reveal.wav";
 const tileEnemyHitSoundAsset = "./assets/audio/sfx/tile-enemy-hit.wav";
+const comboSoundAsset = "./assets/audio/sfx/sfx-combo.mp3";
 const customCursorAsset = "./assets/ui/cursor/cursor-default.png";
 const audioAssetMap = {
   bgmMain: "./assets/audio/bgm/bgm-main.mp3",
@@ -320,6 +330,9 @@ const dom = hasDom
       boardViewport: document.getElementById("board-viewport"),
       board: document.getElementById("board"),
       fxOverlay: document.getElementById("fx-overlay"),
+      comboOverlay: document.getElementById("combo-overlay"),
+      comboPopup: document.getElementById("combo-popup"),
+      comboPopupCount: document.getElementById("combo-popup-count"),
       totalHoney: document.getElementById("total-honey"),
       roundHoney: document.getElementById("round-honey"),
       roundHoneyCard: document.getElementById("round-honey-card"),
@@ -348,6 +361,26 @@ const feedbackState = {
   shouldResetRoundHoney: false,
   audioContext: null,
 };
+
+const comboState = {
+  count: 0,
+  lastTriggerAt: 0,
+  timeoutHandle: null,
+  hideTimer: null,
+  visibleHideTimer: null,
+  isVisible: false,
+  isExiting: false,
+  lastTileId: null,
+  lastSoundAt: 0,
+};
+
+const comboTierClasses = ["combo-popup--tier-1", "combo-popup--tier-2", "combo-popup--tier-3"];
+
+function getComboTierClass(count) {
+  if (count >= 11) return "combo-popup--tier-3";
+  if (count >= 6) return "combo-popup--tier-2";
+  return "combo-popup--tier-1";
+}
 
 function getNow() {
   if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -385,6 +418,64 @@ function scheduleFeedback(callback, delay) {
 function clearFeedbackTimers() {
   feedbackTimers.forEach((timerId) => clearTimeout(timerId));
   feedbackTimers = [];
+}
+
+function clearComboTimeout() {
+  if (comboState.timeoutHandle !== null) {
+    clearTimeout(comboState.timeoutHandle);
+    comboState.timeoutHandle = null;
+  }
+}
+
+function clearComboHideTimer() {
+  if (comboState.hideTimer !== null) {
+    clearTimeout(comboState.hideTimer);
+    comboState.hideTimer = null;
+  }
+}
+
+function clearComboVisibleHideTimer() {
+  if (comboState.visibleHideTimer !== null) {
+    clearTimeout(comboState.visibleHideTimer);
+    comboState.visibleHideTimer = null;
+  }
+}
+
+// 软隐藏：只让浮层渐隐离场，但保留 comboState.count / timeoutHandle，
+// 这样在 timeoutMs 内再采到花仍按累计 Combo 继续，不会出现浮层长时间挂在画面上。
+function softHideComboPopup() {
+  comboState.visibleHideTimer = null;
+
+  if (!dom?.comboPopup || !comboState.isVisible || comboState.isExiting) {
+    return;
+  }
+
+  comboState.isVisible = false;
+  comboState.isExiting = true;
+  dom.comboPopup.classList.remove("combo-popup--enter", "combo-popup--pop");
+  dom.comboPopup.style.transition = "";
+  void dom.comboPopup.offsetWidth;
+  dom.comboPopup.classList.add("combo-popup--exit");
+
+  clearComboHideTimer();
+  comboState.hideTimer = setTimeout(() => {
+    if (dom?.comboPopup) {
+      dom.comboPopup.hidden = true;
+      dom.comboPopup.classList.remove("combo-popup--exit");
+      dom.comboPopup.style.left = "";
+      dom.comboPopup.style.top = "";
+      dom.comboPopup.style.transition = "";
+    }
+    comboState.hideTimer = null;
+    comboState.isExiting = false;
+  }, comboConfig.fadeOutMs);
+}
+
+function scheduleComboVisibleHide() {
+  clearComboVisibleHideTimer();
+  comboState.visibleHideTimer = setTimeout(() => {
+    softHideComboPopup();
+  }, comboConfig.visibleMs);
 }
 
 function triggerRenderOnly() {
@@ -433,6 +524,234 @@ function triggerFailFeedback(tileIds = []) {
     gameState.shakeTileIds = [];
     triggerRenderOnly();
   }, animationDurations.shake);
+}
+
+function computeComboAnchor(tileId) {
+  if (!dom?.comboOverlay || !tileId) {
+    return null;
+  }
+
+  const tileElement = dom.board?.querySelector(`[data-tile-id="${tileId}"]`);
+  if (!tileElement) {
+    return null;
+  }
+
+  const tileRect = tileElement.getBoundingClientRect();
+  const overlayRect = dom.comboOverlay.getBoundingClientRect();
+  return {
+    left: tileRect.left - overlayRect.left + tileRect.width / 2,
+    top: tileRect.top - overlayRect.top + comboConfig.offsetY,
+  };
+}
+
+function applyComboPopupTier() {
+  if (!dom?.comboPopup) {
+    return;
+  }
+
+  comboTierClasses.forEach((cls) => dom.comboPopup.classList.remove(cls));
+  dom.comboPopup.classList.add(getComboTierClass(comboState.count));
+}
+
+function clearComboPopupClasses() {
+  if (!dom?.comboPopup) {
+    return;
+  }
+
+  dom.comboPopup.classList.remove(
+    "combo-popup--enter",
+    "combo-popup--pop",
+    "combo-popup--exit",
+    ...comboTierClasses
+  );
+}
+
+function resetComboPopupDom() {
+  if (!dom?.comboPopup) {
+    return;
+  }
+
+  clearComboPopupClasses();
+  dom.comboPopup.hidden = true;
+  dom.comboPopup.style.left = "";
+  dom.comboPopup.style.top = "";
+  dom.comboPopup.style.transition = "";
+}
+
+function updateComboPopupPosition(tileId) {
+  if (!dom?.comboPopup) {
+    return;
+  }
+
+  const anchor = computeComboAnchor(tileId);
+  if (!anchor) {
+    return;
+  }
+
+  dom.comboPopup.style.left = `${anchor.left}px`;
+  dom.comboPopup.style.top = `${anchor.top}px`;
+}
+
+function endCombo(options = {}) {
+  const { immediate = false } = options;
+
+  clearComboTimeout();
+  clearComboHideTimer();
+  clearComboVisibleHideTimer();
+
+  const wasVisible = comboState.isVisible;
+  comboState.count = 0;
+  comboState.lastTriggerAt = 0;
+  comboState.lastTileId = null;
+  comboState.isVisible = false;
+  comboState.isExiting = false;
+
+  if (!dom?.comboPopup || !dom.comboPopupCount) {
+    return;
+  }
+
+  if (immediate || !wasVisible) {
+    resetComboPopupDom();
+    return;
+  }
+
+  comboState.isExiting = true;
+  dom.comboPopup.classList.remove("combo-popup--enter", "combo-popup--pop");
+  // 退场使用 transform 动画，需要关闭 left/top 的位置过渡，避免抢夺 transform
+  dom.comboPopup.style.transition = "";
+  void dom.comboPopup.offsetWidth;
+  dom.comboPopup.classList.add("combo-popup--exit");
+
+  comboState.hideTimer = setTimeout(() => {
+    resetComboPopupDom();
+    comboState.hideTimer = null;
+    comboState.isExiting = false;
+  }, comboConfig.fadeOutMs);
+}
+
+function resetComboTimer() {
+  clearComboTimeout();
+  comboState.timeoutHandle = setTimeout(() => {
+    endCombo();
+  }, comboConfig.timeoutMs);
+}
+
+let comboSoundTemplate = null;
+
+function primeComboSound() {
+  if (typeof Audio === "undefined") {
+    return;
+  }
+
+  if (!comboSoundTemplate) {
+    try {
+      comboSoundTemplate = new Audio(comboSoundAsset);
+      comboSoundTemplate.preload = "auto";
+    } catch (_error) {
+      comboSoundTemplate = null;
+    }
+  }
+}
+
+function playComboSoundSynth() {
+  const audioContext = ensureCollectAudioContext();
+  if (!audioContext) {
+    return;
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume().catch(() => {});
+  }
+
+  const startedAt = audioContext.currentTime;
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  oscillator.type = "triangle";
+  oscillator.frequency.setValueAtTime(880, startedAt);
+  oscillator.frequency.exponentialRampToValueAtTime(1320, startedAt + 0.09);
+  gainNode.gain.setValueAtTime(0.0001, startedAt);
+  gainNode.gain.exponentialRampToValueAtTime(0.06, startedAt + 0.02);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, startedAt + 0.16);
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  oscillator.start(startedAt);
+  oscillator.stop(startedAt + 0.18);
+}
+
+function playComboSound() {
+  const now = getNow();
+  if (now - comboState.lastSoundAt < comboConfig.soundThrottleMs) {
+    return;
+  }
+  comboState.lastSoundAt = now;
+
+  if (typeof Audio !== "undefined") {
+    try {
+      const instance = comboSoundTemplate ? comboSoundTemplate.cloneNode(true) : new Audio(comboSoundAsset);
+      const playResult = instance.play();
+      if (playResult && typeof playResult.catch === "function") {
+        playResult.catch(() => playComboSoundSynth());
+      }
+      return;
+    } catch (_error) {
+      // fallback below
+    }
+  }
+
+  playComboSoundSynth();
+}
+
+function incrementCombo(tileId) {
+  if (!dom?.comboPopup || !dom.comboPopupCount) {
+    return;
+  }
+
+  const isFirstBump = !comboState.isVisible || comboState.count === 0 || comboState.isExiting;
+
+  comboState.count += 1;
+  comboState.lastTriggerAt = getNow();
+  comboState.lastTileId = tileId;
+  dom.comboPopupCount.textContent = String(comboState.count);
+
+  clearComboHideTimer();
+  comboState.isExiting = false;
+
+  const anchor = computeComboAnchor(tileId);
+
+  if (isFirstBump) {
+    // 第一次 bump：临时关闭 left/top 过渡，预设到目标坐标后再恢复
+    dom.comboPopup.classList.remove("combo-popup--exit");
+    dom.comboPopup.style.transition = "none";
+    if (anchor) {
+      dom.comboPopup.style.left = `${anchor.left}px`;
+      dom.comboPopup.style.top = `${anchor.top}px`;
+    }
+    void dom.comboPopup.offsetWidth;
+    dom.comboPopup.style.transition = "";
+    dom.comboPopup.hidden = false;
+
+    applyComboPopupTier();
+
+    dom.comboPopup.classList.remove("combo-popup--enter", "combo-popup--pop");
+    void dom.comboPopup.offsetWidth;
+    dom.comboPopup.classList.add("combo-popup--enter", "combo-popup--pop");
+  } else {
+    // 第二次起：让 left/top 平滑过渡跟随，并重触发 pop
+    if (anchor) {
+      dom.comboPopup.style.left = `${anchor.left}px`;
+      dom.comboPopup.style.top = `${anchor.top}px`;
+    }
+    applyComboPopupTier();
+
+    dom.comboPopup.classList.remove("combo-popup--pop");
+    void dom.comboPopup.offsetWidth;
+    dom.comboPopup.classList.add("combo-popup--pop");
+  }
+
+  comboState.isVisible = true;
+  playComboSound();
+  resetComboTimer();
+  scheduleComboVisibleHide();
 }
 
 function playInvalidStartSound() {
@@ -508,6 +827,7 @@ function getStateSnapshot() {
     totalHoney: gameState.totalHoney,
     roundHoney: gameState.roundHoney,
     isGameOver: gameState.isGameOver,
+    comboCount: comboState.count,
     currentPath: [...gameState.currentPath],
     lastOutcome: gameState.lastOutcome,
   };
@@ -703,6 +1023,7 @@ function primeCollectAudio() {
   }
   primeTileRevealSound();
   primeTileEnemyHitSound();
+  primeComboSound();
 }
 
 let tileRevealSoundTemplate = null;
@@ -970,9 +1291,11 @@ function queueRoundHoneyReset() {
 
 function setTileRevealed(tileId) {
   const tileState = gameState.tileStateMap[tileId];
+  const wasRevealed = tileState.revealed;
   tileState.revealed = true;
   tileState.unlocked = true;
   gameState.revealedTiles.add(tileId);
+  return !wasRevealed;
 }
 
 function isSafeTileType(type) {
@@ -1032,6 +1355,10 @@ function applyResponsiveGameScale() {
   const topOffset = isMobileViewport ? 0 : Math.max(0, (availableHeight - stageHeight * scale) / 2);
   dom.gameStage.style.top = `${topOffset}px`;
   dom.gameStage.style.transform = `translateX(-50%) scale(${scale})`;
+
+  if (comboState.count > 0 && comboState.lastTileId) {
+    updateComboPopupPosition(comboState.lastTileId);
+  }
 }
 
 function getTileTypeLabel(type) {
@@ -1235,6 +1562,7 @@ function renderAll() {
 
 function restartGame(options = {}) {
   clearFeedbackTimers();
+  endCombo({ immediate: true });
   resetCollectionFeedback({ resetRunToken: true, clearFlights: true, resetDisplay: true });
   const nextOptions = {
     ...options,
@@ -1413,6 +1741,7 @@ function extendRun(tileId) {
 
   if (tileState.type === "flower") {
     gameState.currentRunHoney += 1;
+    incrementCombo(tileId);
     spawnFlowerFlyEffect(tileId);
     gameState.statusText = `采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`;
   } else {
@@ -1766,6 +2095,14 @@ function syncDebugHandle() {
     get contentSummary() {
       return summarizeTileTypes(gameState.tileStateMap);
     },
+    get comboState() {
+      return {
+        count: comboState.count,
+        lastTriggerAt: comboState.lastTriggerAt,
+        isVisible: comboState.isVisible,
+        lastTileId: comboState.lastTileId,
+      };
+    },
     createInitialGameState,
     hasRevealedNeighbor,
     getVisibleDangerCount,
@@ -1773,6 +2110,7 @@ function syncDebugHandle() {
     getDisplayStartTileId,
     playStartSelectSound,
     playInvalidStartSound,
+    endCombo,
     beginRun,
     extendRun,
     endRun,

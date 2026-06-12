@@ -1,10 +1,10 @@
 # B-COD 记录
 
 ## Claim
-- 任务 ID：RULE-03 / FX-03
-- 当前 claim：模块《删除固定起点 UI + 非法点击反馈》
-- 范围：删除固定起点文案/描边/常驻跟随物，保留 RULE-01 候选呼吸与按下瞬时脉冲，并新增非法点击红闪与预留音效接口；不改自由起点、扣费、飞花与音效主流程
-- 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）、`FX-02`（起点格子强化标识）、`RULE-01`（取消起点继承 + 自由选择起点）、`RULE-02`（蜜蜂消耗保护机制）
+- 任务 ID：B-COD-DEMO-FEEDBACK-003
+- 当前 claim：模块《花朵采集连击反馈（Combo System）》
+- 范围：接入全局 Combo UI、按采花累计的连击状态、2.5 秒超时结束、升级音效与强化档样式；不改收益数值、飞花主逻辑、移动端专项适配
+- 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）、`FX-02`（起点格子强化标识）、`RULE-01`（取消起点继承 + 自由选择起点）、`RULE-02`（蜜蜂消耗保护机制）、`RULE-03 / FX-03`（删除固定起点 UI + 非法点击反馈）
 
 ## 实现记录
 - 新建最小静态前端文件：`index.html`、`style.css`、`app.js`
@@ -87,6 +87,23 @@
 - 本轮 claim：`RULE-03 / FX-03` 固定起点 UI 移除——初始文案改为“选择任意已翻开的格子（天敌除外）作为起点，按住滑动。”；保留 RULE-01 候选呼吸和合法按下瞬时脉冲
 - 新增非法点击反馈：空闲态按下未翻开格 / 已翻开的天敌格 / 蜜蜂为 0 时，会触发 `tile--invalid-flash` 红闪、toast 提示与 `playInvalidStartSound()` 预留音效，不扣蜜蜂、不进入 `beginRun()`
 - 补充微调：移除 `.tile--start-candidate` 的金色描边，仅保留轻微呼吸动画，避免棋盘上残留固定色框
+- 本轮 claim：`B-COD-DEMO-FEEDBACK-003` 连击反馈——新增常驻全局 `#combo-ui` 浮层，位置锚定最新采集到花朵的格子上方；后续继续采花时用减速曲线平滑跟随
+- 新增 `comboState` / `comboConfig`：维护 `count / lastTriggerAt / timeoutHandle / hideTimer / isVisible / lastTileId`，2.5 秒未继续采集新花自动结束并上浮渐隐
+- 触发链路修正：Combo 现改为在 `extendRun()` 的 `flower` 分支内每采到一朵花就执行 `incrementCombo(tileId)`；`empty`、`enemy`、是否首次 reveal 均不再触发 Combo
+- 新增 Combo 视觉层级：普通档（1~4）与强化档（≥5）分开样式；数字使用回弹 `combo-number-pop`，强化档更亮、更大、更弹
+- 新增 Combo 升级音效：资源入口预留为 `comboSoundAsset=./assets/audio/sfx/sfx-combo.mp3`；当前实现优先尝试文件播放，失败时降级到 Web Audio 合成短音，避免资源未落地时功能失效
+- 收尾规则：`restartGame()` 立即清空 Combo；其余情况按“2.5 秒未再采花”自然结束；窗口缩放时若 Combo 仍存活，会重新对齐到当前最新采花格
+- 本轮 claim：`COMBO-02` 去除底框 + 修正出场位置——浮层结构改为 `#combo-overlay > .combo-popup`，子节点 `.combo-popup__label`（文本 `Combo x `）+ `.combo-popup__count`（数字），整体渲染为单行 `Combo x1`
+- 去掉底框：删除 `.combo-ui*` 旧规则，新 `.combo-popup` 仅保留 `position: absolute / display: inline-block / white-space: nowrap / transform: translate(-50%, -100%) / pointer-events: none / will-change`，无 background / border / box-shadow / border-radius / padding
+- 跟随过渡改为作用在 `left / top`（320ms `cubic-bezier(0.22, 1, 0.36, 1)`），缩放动画作用在子 `span`，避免与定位 `translate(-50%, -100%)` 互相打架
+- 出场修正：首次 bump（0→1）走"临时关 transition → 写入 left/top → 强制 reflow → 恢复 transition → unhide → 重触发 `--enter` + `--pop`"，彻底解决"从左上角飞过来"
+- 第二次起 bump 仅更新 `left/top` 并重触发 `--pop`，由 CSS transition 平滑跟随；exit 状态被新 bump 打断时会先清掉 `--exit`
+- 退场：600ms `transform: translate(-50%, -180%) + opacity 0`，到时清掉 tier / `--enter` / `--pop` / `--exit`、`hidden = true`、清空 inline `left / top` 和 `transition`，下一次再首次出现重新走预设流程
+- tier 分级：`combo-popup--tier-1`（1~5）、`--tier-2`（6~10）、`--tier-3`（11+），仅控制 `color / font-size / text-shadow`，不再有 background / border / padding；旧 `combo-ui--boost` 已废弃
+- 入场动画 `combo-enter` 240ms 作用在子 `span` 的 `opacity + scale`；持续 pop 动画 `combo-pop` 280ms 作用在 `.combo-popup__count` 的 `scale`
+- 坐标计算抽出 `computeComboAnchor(tileId)`：相对 `#combo-overlay.getBoundingClientRect()` 算出 `left = rect.left - overlay.left + rect.width/2`、`top = rect.top - overlay.top + offsetY`，`comboConfig.offsetY` 默认 `-8`
+- `comboConfig.fadeOutMs` 由 520 改为 600，对齐 `--exit` transition 时长
+- 删除 `.combo-popup__times` 节点（COMBO-01 残留命名）与对应 CSS；index.html 不再有 `combo-ui*` 相关 id / class
 
 ## 接口登记
 - 无外部接口
@@ -96,6 +113,7 @@
 - 交互调试入口：`window.demoBoard.beginRun(tileId)`、`window.demoBoard.extendRun(tileId)`、`window.demoBoard.endRun()`、`window.demoBoard.resetGame({ typeMap })`
 - 飞花调试入口：`window.demoBoard.spawnFlowerFlyEffect(tileId)`
 - 飞花状态观测：`window.demoBoard.feedbackState`
+- Combo 状态观测：`window.demoBoard.comboState`
 - 反馈相关状态：`window.demoBoard.gameState.isFailFlash`、`toastMessage`、`startPulseTileId`、`invalidFlashTileIds`、`isGameOver`
 - 起点状态字段：`gameState.currentStartTileId`（拖动中真起点 / 首局 T18 引导）、`gameState.lastEndedTileId`（空闲态视觉锚点）
 - 蜜蜂扣费状态字段：`gameState.lastConsumedBee`（上一轮是否真实消耗蜜蜂）
@@ -106,6 +124,10 @@
 - 翻格音效资源入口：`tileRevealSoundAsset`（位于 `app.js`，默认指向 `assets/audio/sfx/tile-reveal.wav`）
 - 翻格音效函数：`playTileRevealSound()` / `primeTileRevealSound()`（位于 `app.js`），每次 `cloneNode` 播放支持快速连翻
 - SFX-03 扩展：翻格音效触发位置已从 `setTileRevealed()` 内部上移到 `extendRun()` 安全分支结尾；走入已 reveal 的 `flower / empty` 也会播一次同音；`setTileRevealed()` 恢复为纯状态写入函数，不再附带音效；enemy 分支沿用 SFX-02 方案 A，仅播 enemy-hit 音，不叠加 reveal 音
+- Combo 浮层 DOM：`#combo-overlay > #combo-popup(.combo-popup) > .combo-popup__label + #combo-popup-count(.combo-popup__count)`（位于 `index.html`）
+- Combo 资源入口：`comboSoundAsset`（位于 `app.js`，默认指向 `./assets/audio/sfx/sfx-combo.mp3`）
+- Combo 核心函数：`incrementCombo(tileId)` / `computeComboAnchor(tileId)` / `updateComboPopupPosition(tileId)` / `applyComboPopupTier()` / `resetComboPopupDom()` / `resetComboTimer()` / `endCombo()` / `playComboSound()` / `primeComboSound()`（位于 `app.js`）
+- Combo 触发口：`extendRun()` 的 `flower` 分支每次采到花都会累加 Combo；不再绑定“首次翻格”
 - 撞天敌音效资源入口：`tileEnemyHitSoundAsset`（位于 `app.js`，默认指向 `assets/audio/sfx/tile-enemy-hit.wav`）
 - 撞天敌音效函数：`playTileEnemyHitSound()` / `primeTileEnemyHitSound()`（位于 `app.js`），在 `extendRun()` 的 enemy 分支内 `setTileRevealed(tileId, { silent: true })` 之后立即调用，确保一次失败仅一声
 - `setTileRevealed(tileId)` 现已恢复为纯状态写入（SFX-03 调整后），音效改由 `extendRun()` 的安全分支结尾统一触发；enemy 分支不再依赖 `silent` 参数，仅靠不调用 `playTileRevealSound()` 来避免叠音
@@ -125,6 +147,8 @@
 - 蜜蜂扣费时机：`completeRun()` 顶部按 `path.length >= 2` 判定并扣费；`beginRun()` 不再预扣
 - 中性 toast 样式：`.toast--info`（位于 `style.css`）
 - 非法点击样式：`.tile--invalid-flash`（位于 `style.css`）
+- Combo 配置入口：`comboConfig`（位于 `app.js`，当前含 `timeoutMs / fadeOutMs / followDurationMs / followEasing / offsetY / soundThrottleMs`）
+- Combo 样式入口：`.combo-overlay`、`.combo-popup`、`.combo-popup__label`、`.combo-popup__count`、`.combo-popup--enter`、`.combo-popup--pop`、`.combo-popup--exit`、`.combo-popup--tier-1/2/3`、keyframes `combo-enter` / `combo-pop`（位于 `style.css`）
 
 ## 验证记录
 - 已做：
@@ -163,8 +187,9 @@
    25. 接入 RULE-01 自由起点后再次执行 `node --check app.js`，语法通过；`currentStartTileId / lastEndedTileId` 已拆分，成功/失败分支不再自动继承起点，FX-02 蜜蜂定位同步改走 `getDisplayStartTileId()`
    26. 接入 RULE-02 蜜蜂消耗保护后再次执行 `node --check app.js`，语法通过；`beginRun()` 不再预扣蜜蜂，`completeRun()` 按 `path.length >= 2` 决定是否扣费，并导出 `lastConsumedBee`
    27. 接入 RULE-03 / FX-03 后再次执行 `node --check app.js`，语法通过；固定起点文案/描边/常驻跟随物已移除，新增非法点击红闪与预留音效接口
+   28. 接入 `B-COD-DEMO-FEEDBACK-003` Combo System 后再次执行 `node --check app.js`，语法通过；Combo 现按“每采到一朵花 +1”触发，`empty` / `enemy` 不会误加；重开会立即清空，其余由 2.5 秒超时自然结束
 - 未做：浏览器人工打开验收
-- 未验证原因：当前会话未启动浏览器进行视觉检查，也无法在此直接录屏；尚未人工确认飞花轨迹、HUD 吸附弹跳、音效触发时机，以及 RULE-03 / FX-03 下的候选呼吸、非法点击红闪、移除固定起点 UI 后的首局引导可见性
+- 未验证原因：当前会话未启动浏览器进行视觉检查，也无法在此直接录屏；尚未人工确认 Combo 浮层是否严格跟随“最新采花格”、强化档表现、2.5 秒上浮渐隐、音效节流，以及与飞花 / 光标 / BGM 的叠加观感
 - 建议验证步骤：
   1. 直接打开 `index.html`
   2. 连续滑过 3~5 个花朵格，确认飞花按约 0.08 秒错峰发射，形成连续 `Pupupu` 节奏
@@ -187,7 +212,10 @@
    19. 拖入至少 1 个相邻格再松手，确认无论采到花或踩到 enemy，`remainingBees` 只减少 1 次
    20. 将 `remainingBees` 打到 0 时确认仅在真实扣费后的结算点弹出 game-over；连续空按起点不会把蜜蜂扣空
    21. 点击未翻开格或已翻开的天敌格时，确认地块出现红色闪烁 + fail toast，且不进入 `beginRun()`
+   22. 连续采集 6~8 朵花，确认 `#combo-ui` 会持续跟随最新采花格移动，且 `Combo ≥ 5` 时明显更亮、更大、更弹
+   23. 采到花后等待约 3 秒，确认 Combo 上浮渐隐消失，不会卡在旧位置
+   24. 反复进入/结束 Combo，并切换标签页再回来，确认状态不残留、位置不乱跳
 
 ## 协作需求
-- 默认可交给 `B-FIX` 做浏览器实机回归：飞花层级、Bezier 弧线观感、HUD 锚点精度、音效时机、RULE-03 / FX-03 的非法点击红闪、候选呼吸、固定起点 UI 移除后的首局引导可见性
+- 默认可交给 `B-FIX` 做浏览器实机回归：Combo 浮层跟随最新采花格、强化档视觉、2.5 秒结束渐隐、音效节流，以及与飞花 / 自定义光标 / BGM 的并存观感
 - 本模块完成后建议回流 `@A-PLN` 做阶段收口；若先做人眼验收，也可先交 `A-ASK` / 用户按上方步骤检查，再决定是否补第二轮爽感优化

@@ -71,6 +71,81 @@ body::before {
   overflow: visible;
 }
 
+.combo-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 18;
+  overflow: visible;
+}
+
+.combo-popup {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-block;
+  white-space: nowrap;
+  pointer-events: none;
+  font-weight: 900;
+  line-height: 1;
+  transform: translate(-50%, -100%);
+  transform-origin: center bottom;
+  transition:
+    left 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    top 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: left, top;
+}
+
+.combo-popup[hidden] {
+  display: none;
+}
+
+.combo-popup__label,
+.combo-popup__count {
+  display: inline-block;
+  transform-origin: center;
+}
+
+.combo-popup--tier-1 {
+  color: #fff8c4;
+  font-size: 28px;
+  text-shadow: 0 0 6px rgba(255, 220, 120, 0.7), 0 0 12px rgba(255, 200, 80, 0.4);
+}
+
+.combo-popup--tier-2 {
+  color: #ffd066;
+  font-size: 36px;
+  text-shadow:
+    0 0 10px rgba(255, 160, 60, 0.9),
+    0 0 22px rgba(255, 140, 40, 0.55),
+    0 0 36px rgba(255, 120, 20, 0.3);
+}
+
+.combo-popup--tier-3 {
+  color: #ff7a3d;
+  font-size: 44px;
+  text-shadow:
+    0 0 12px rgba(255, 90, 30, 0.95),
+    0 0 28px rgba(255, 60, 20, 0.7),
+    0 0 48px rgba(255, 40, 10, 0.4),
+    0 0 80px rgba(255, 30, 0, 0.25);
+}
+
+.combo-popup--enter .combo-popup__count,
+.combo-popup--enter .combo-popup__label {
+  animation: combo-enter 240ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.combo-popup--pop .combo-popup__count {
+  animation: combo-pop 280ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.combo-popup--exit {
+  transition: transform 600ms ease-out, opacity 600ms ease-out;
+  transform: translate(-50%, -180%);
+  opacity: 0;
+}
+
 .game-stage {
   position: absolute;
   top: 0;
@@ -695,6 +770,36 @@ body.is-dragging-cursor * {
   100% {
     box-shadow: 0 0 0 0 rgba(255, 60, 60, 0);
     filter: brightness(1);
+  }
+}
+
+@keyframes combo-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes combo-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.22);
+  }
+  70% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
   }
 }
 
