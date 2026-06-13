@@ -41,6 +41,14 @@ const tileAssetMap = {
   enemy: "./assets/tiles/tile-enemy.png?v=enemy-20260613-1",
   flower: "./assets/tiles/tile-flower.png",
 };
+const threatEdgeAssetMap = {
+  left: "./assets/tiles/tile-edge-left.png",
+  right: "./assets/tiles/tile-edge-right.png",
+  "upper-left": "./assets/tiles/tile-edge-upper-left.png",
+  "upper-right": "./assets/tiles/tile-edge-upper-right.png",
+  "lower-left": "./assets/tiles/tile-edge-lower-left.png",
+  "lower-right": "./assets/tiles/tile-edge-lower-right.png",
+};
 const flowerOverlayAsset = "./assets/tiles/flower_01.png";
 const enemyOverlayAsset = "./assets/tiles/Bird_01.png?v=enemy-20260613-1";
 let enemyOverlayDisplayAsset = enemyOverlayAsset;
@@ -71,49 +79,6 @@ const bgmConfig = {
   defaultVolume: 0.3,
   storageKey: "honey-demo:bgm-muted",
 };
-const threatGlowTuningDefaults = {
-  glowInset: "-14px",
-  edgeGradient:
-    "linear-gradient(90deg, rgba(255, 236, 206, 0) 0%, rgba(255, 119, 54, 0.96) 22%, rgba(255, 70, 54, 1) 50%, rgba(255, 157, 78, 0.98) 78%, rgba(255, 236, 206, 0) 100%)",
-  edgeOpacity: "0.96",
-  edgeBlur: "9px",
-  edgeBoxShadow: "0 0 18px rgba(255, 82, 48, 0.82), 0 0 34px rgba(255, 126, 78, 0.56)",
-  edgeDuration: "1.4s",
-  idleOpacity: "0.76",
-  idleBlur: "8px",
-  peakOpacity: "1",
-  peakBlur: "12px",
-  sideOffset: "-4px",
-  sideTop: "34px",
-  sideWidth: "28px",
-  sideHeight: "60px",
-  diagInsetX: "6px",
-  diagInsetY: "13px",
-  diagWidth: "64px",
-  diagHeight: "20px",
-  diagAngle: "28deg",
-};
-const threatGlowControlDefinitions = [
-  { key: "glowInset", label: "外扩范围", hint: "例如 -14px" },
-  { key: "edgeGradient", label: "渐变", hint: "完整 linear-gradient(...)" },
-  { key: "edgeOpacity", label: "静态透明度", hint: "例如 0.96" },
-  { key: "edgeBlur", label: "静态模糊", hint: "例如 9px" },
-  { key: "edgeBoxShadow", label: "阴影", hint: "完整 box-shadow 值" },
-  { key: "edgeDuration", label: "呼吸时长", hint: "例如 1.4s" },
-  { key: "idleOpacity", label: "起终点透明度", hint: "例如 0.76" },
-  { key: "idleBlur", label: "起终点模糊", hint: "例如 8px" },
-  { key: "peakOpacity", label: "峰值透明度", hint: "例如 1" },
-  { key: "peakBlur", label: "峰值模糊", hint: "例如 12px" },
-  { key: "sideOffset", label: "左右边偏移", hint: "例如 -4px" },
-  { key: "sideTop", label: "左右边顶部", hint: "例如 34px" },
-  { key: "sideWidth", label: "左右边宽度", hint: "例如 28px" },
-  { key: "sideHeight", label: "左右边高度", hint: "例如 60px" },
-  { key: "diagInsetX", label: "斜边横向内缩", hint: "例如 6px" },
-  { key: "diagInsetY", label: "斜边纵向内缩", hint: "例如 13px" },
-  { key: "diagWidth", label: "斜边宽度", hint: "例如 64px" },
-  { key: "diagHeight", label: "斜边高度", hint: "例如 20px" },
-  { key: "diagAngle", label: "斜边角度", hint: "例如 28deg" },
-];
 const tileTypeCounts = {
   enemy: 3,
   flower: 10,
@@ -380,7 +345,6 @@ function createInitialGameState(options = {}) {
 
 let gameState = createInitialGameState();
 let feedbackTimers = [];
-const threatGlowTuningState = { ...threatGlowTuningDefaults };
 
 const dom = hasDom
   ? {
@@ -404,11 +368,6 @@ const dom = hasDom
       gameWin: document.getElementById("game-win"),
       gameWinSummary: document.getElementById("game-win-summary"),
       restartWinButton: document.getElementById("restart-win-button"),
-      threatGlowPanel: document.getElementById("threat-glow-panel"),
-      threatGlowControls: document.getElementById("threat-glow-controls"),
-      threatGlowReset: document.getElementById("threat-glow-reset"),
-      threatGlowCopy: document.getElementById("threat-glow-copy"),
-      threatGlowExport: document.getElementById("threat-glow-export"),
     }
   : null;
 
@@ -442,187 +401,6 @@ const comboState = {
 };
 
 const comboTierClasses = ["combo-popup--tier-1", "combo-popup--tier-2", "combo-popup--tier-3"];
-
-function getThreatGlowCssVariables(values = threatGlowTuningState) {
-  return {
-    "--threat-glow-inset": values.glowInset,
-    "--threat-edge-gradient": values.edgeGradient,
-    "--threat-edge-opacity": values.edgeOpacity,
-    "--threat-edge-blur": values.edgeBlur,
-    "--threat-edge-box-shadow": values.edgeBoxShadow,
-    "--threat-edge-duration": values.edgeDuration,
-    "--threat-edge-idle-opacity": values.idleOpacity,
-    "--threat-edge-idle-blur": values.idleBlur,
-    "--threat-edge-peak-opacity": values.peakOpacity,
-    "--threat-edge-peak-blur": values.peakBlur,
-    "--threat-side-offset": values.sideOffset,
-    "--threat-side-top": values.sideTop,
-    "--threat-side-width": values.sideWidth,
-    "--threat-side-height": values.sideHeight,
-    "--threat-diag-inset-x": values.diagInsetX,
-    "--threat-diag-inset-y": values.diagInsetY,
-    "--threat-diag-width": values.diagWidth,
-    "--threat-diag-height": values.diagHeight,
-    "--threat-diag-angle": values.diagAngle,
-  };
-}
-
-function getThreatGlowExportText(values = threatGlowTuningState) {
-  const cssVariables = getThreatGlowCssVariables(values);
-
-  return [
-    ":root {",
-    ...Object.entries(cssVariables).map(([name, value]) => `  ${name}: ${value};`),
-    "}",
-  ].join("\n");
-}
-
-function applyThreatGlowTuning(values = threatGlowTuningState) {
-  if (!hasDom || !document?.documentElement) {
-    return;
-  }
-
-  const cssVariables = getThreatGlowCssVariables(values);
-  Object.entries(cssVariables).forEach(([name, value]) => {
-    document.documentElement.style.setProperty(name, value);
-  });
-
-  if (dom?.threatGlowExport) {
-    dom.threatGlowExport.value = getThreatGlowExportText(values);
-  }
-}
-
-function syncThreatGlowControlValues() {
-  if (!dom?.threatGlowControls) {
-    return;
-  }
-
-  dom.threatGlowControls
-    .querySelectorAll("[data-threat-glow-key]")
-    .forEach((input) => {
-      const key = input.dataset.threatGlowKey;
-      if (!key) {
-        return;
-      }
-      input.value = threatGlowTuningState[key] ?? threatGlowTuningDefaults[key] ?? "";
-    });
-}
-
-function buildThreatGlowControls() {
-  if (!dom?.threatGlowControls) {
-    return;
-  }
-
-  dom.threatGlowControls.innerHTML = "";
-  const fragment = document.createDocumentFragment();
-
-  threatGlowControlDefinitions.forEach((definition) => {
-    const field = document.createElement("label");
-    field.className = "tuning-panel__field";
-
-    const label = document.createElement("span");
-    label.className = "tuning-panel__field-label";
-    label.textContent = definition.label;
-
-    const isMultiline = definition.key === "edgeGradient" || definition.key === "edgeBoxShadow";
-    const input = document.createElement(isMultiline ? "textarea" : "input");
-    input.className = "tuning-panel__input";
-    if (isMultiline) {
-      input.classList.add("tuning-panel__input--multiline");
-      input.rows = 3;
-    } else {
-      input.type = "text";
-    }
-    input.dataset.threatGlowKey = definition.key;
-    input.value = threatGlowTuningState[definition.key] ?? "";
-
-    const hint = document.createElement("span");
-    hint.className = "tuning-panel__field-hint";
-    hint.textContent = definition.hint;
-
-    field.append(label, input, hint);
-    fragment.appendChild(field);
-  });
-
-  dom.threatGlowControls.appendChild(fragment);
-}
-
-function handleThreatGlowControlInput(event) {
-  const input = event.target.closest?.("[data-threat-glow-key]");
-  if (!input) {
-    return;
-  }
-
-  const key = input.dataset.threatGlowKey;
-  if (!key) {
-    return;
-  }
-
-  const nextValue = input.value.trim();
-  threatGlowTuningState[key] = nextValue || threatGlowTuningDefaults[key];
-  applyThreatGlowTuning();
-}
-
-function resetThreatGlowTuning() {
-  Object.assign(threatGlowTuningState, threatGlowTuningDefaults);
-  syncThreatGlowControlValues();
-  applyThreatGlowTuning();
-}
-
-async function copyThreatGlowConfig() {
-  if (!dom?.threatGlowExport) {
-    return;
-  }
-
-  const exportText = dom.threatGlowExport.value;
-
-  try {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(exportText);
-    } else {
-      dom.threatGlowExport.select();
-      document.execCommand("copy");
-      dom.threatGlowExport.setSelectionRange(0, 0);
-    }
-
-    if (dom?.threatGlowCopy) {
-      const originalLabel = dom.threatGlowCopy.textContent;
-      dom.threatGlowCopy.textContent = "已复制";
-      setTimeout(() => {
-        if (dom.threatGlowCopy) {
-          dom.threatGlowCopy.textContent = originalLabel;
-        }
-      }, 1200);
-    }
-  } catch (_error) {
-    if (dom?.threatGlowCopy) {
-      dom.threatGlowCopy.textContent = "复制失败";
-      setTimeout(() => {
-        if (dom.threatGlowCopy) {
-          dom.threatGlowCopy.textContent = "复制变量";
-        }
-      }, 1200);
-    }
-  }
-}
-
-function initThreatGlowTuningPanel() {
-  if (!dom?.threatGlowControls) {
-    return;
-  }
-
-  buildThreatGlowControls();
-  applyThreatGlowTuning();
-  dom.threatGlowControls.addEventListener("input", handleThreatGlowControlInput);
-  dom.threatGlowReset?.addEventListener("click", (event) => {
-    event.preventDefault();
-    resetThreatGlowTuning();
-  });
-  dom.threatGlowCopy?.addEventListener("click", (event) => {
-    event.preventDefault();
-    copyThreatGlowConfig();
-  });
-}
 
 function getComboTierClass(count) {
   if (count >= 11) return "combo-popup--tier-3";
@@ -1813,11 +1591,23 @@ function prepareEnemyOverlayAsset() {
 }
 
 function getTileVisualMarkup(tileState, fallbackAsset) {
-  if (tileState?.revealed && tileState.type === "flower") {
+  if (tileState?.revealed && isSafeTileType(tileState.type)) {
+    const threatEdges = getThreatEdgeDirections(tileState);
+
     return `
-      <span class="tile__image-stack tile__image-stack--flower">
+      <span class="tile__image-stack tile__image-stack--safe">
         <img class="tile__image tile__image--base" src="${tileAssetMap.empty}" alt="" />
-        <img class="tile__image tile__image--layer tile__image--flower" src="${flowerOverlayAsset}" alt="" />
+        ${threatEdges
+          .map(
+            (edge) =>
+              `<img class="tile__image tile__image--layer tile__image--threat-edge" src="${threatEdgeAssetMap[edge]}" alt="" />`
+          )
+          .join("")}
+        ${
+          tileState.type === "flower"
+            ? `<img class="tile__image tile__image--layer tile__image--flower" src="${flowerOverlayAsset}" alt="" />`
+            : ""
+        }
       </span>
     `;
   }
@@ -1878,25 +1668,12 @@ function getThreatEdgeDirections(tileState) {
   }
 
   return tileState.neighbors
-    .filter((neighborId) => gameState.tileStateMap[neighborId]?.type === "enemy")
+    .filter((neighborId) => {
+      const neighborState = gameState.tileStateMap[neighborId];
+      return neighborState?.type === "enemy" && !neighborState.revealed;
+    })
     .map((neighborId) => getThreatEdgeDirection(tileState.id, neighborId))
     .filter(Boolean);
-}
-
-function getThreatGlowMarkup(threatEdges) {
-  if (threatEdges.length === 0) {
-    return "";
-  }
-
-  return `
-    <span class="tile__threat-glow" aria-hidden="true">
-      ${threatEdges
-        .map(
-          (edge) => `<span class="tile__threat-edge tile__threat-edge--${edge}"></span>`
-        )
-        .join("")}
-    </span>
-  `;
 }
 
 function getCurrentTileId() {
@@ -2001,7 +1778,6 @@ function createTileElement(tile) {
   const isFlipping = gameState.flipTileIds.includes(tile.id);
   const isStartCandidate = !gameState.isDragging && !gameState.isGameOver && isValidStartCandidate(tile.id);
   const visibleDangerCount = getVisibleDangerCount(tile.id);
-  const threatEdges = getThreatEdgeDirections(state);
   const tileAsset = getTileAsset(state);
   const ariaState = isRevealed
     ? `已解锁，${getTileTypeLabel(state.type)}，周围天敌 ${state.dangerCount}`
@@ -2042,7 +1818,6 @@ function createTileElement(tile) {
   button.dataset.revealed = String(isRevealed);
   button.dataset.dangerCount = String(state.dangerCount);
   button.dataset.visibleDangerCount = visibleDangerCount === null ? "" : String(visibleDangerCount);
-  button.dataset.threatEdges = threatEdges.join(",");
   button.dataset.neighbors = state.neighbors.join(",");
   button.setAttribute(
     "aria-label",
@@ -2062,7 +1837,6 @@ function createTileElement(tile) {
 
   button.innerHTML = `
     <span class="tile__ring" aria-hidden="true"></span>
-    ${getThreatGlowMarkup(threatEdges)}
     <span class="tile__inner" aria-hidden="true">${innerInnerHtml}</span>
     <span class="tile__label">${tile.id}</span>
     ${
@@ -2658,16 +2432,6 @@ function syncDebugHandle() {
     getVisibleDangerCount,
     getThreatEdgeDirection,
     getThreatEdgeDirections,
-    get threatGlowTuning() {
-      return { ...threatGlowTuningState };
-    },
-    resetThreatGlowTuning,
-    applyThreatGlowTuning(values = {}) {
-      Object.assign(threatGlowTuningState, values);
-      syncThreatGlowControlValues();
-      applyThreatGlowTuning();
-      return { ...threatGlowTuningState };
-    },
     isValidStartCandidate,
     getDisplayStartTileId,
     playStartSelectSound,
@@ -2821,7 +2585,6 @@ function init() {
   validateLayoutConfig();
   computeBoardSize();
   attachEventListeners();
-  initThreatGlowTuningPanel();
   restartGame();
   prepareEnemyOverlayAsset();
   initBgm();
