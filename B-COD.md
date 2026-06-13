@@ -7,6 +7,9 @@
 - 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）、`FX-02`（起点格子强化标识）、`RULE-01`（取消起点继承 + 自由选择起点）、`RULE-02`（蜜蜂消耗保护机制）、`RULE-03 / FX-03`（删除固定起点 UI + 非法点击反馈）
 
 ## 实现记录
+- 本轮新增 `tileTypeRatioBaseCounts = { enemy: 3, flower: 10, empty: 6 }`，作为动态分配的比例基准
+- 本轮新增 `calculateTileTypeCounts(totalTiles)`：按当前比例基准与实际格子总数动态换算 `enemy / flower / empty` 数量，并保证 `T18` 不会落入 enemy
+- `tileTypeCounts` 不再写死 19 格固定数量，现改为基于 `tiles.length` 自动计算
 - 本轮新增 `enemyOverlayAsset` 常量，指向 `./assets/tiles/Bird_01.png`，作为 enemy 格前景资源入口
 - `getTileVisualMarkup(tileState, fallbackAsset)` 新增 `revealed && type === "enemy"` 分支：底图继续使用 `tile-enemy.png`，前景叠加 `Bird_01.png`
 - 本轮新增样式 `.tile__image--enemy`，单独控制天敌前景图的尺寸与锚点，避免沿用整格拉伸导致形变
@@ -16,14 +19,14 @@
 - 本轮新增样式 `.tile__image-stack / .tile__image--layer / .tile__image--flower`，用于双层图片叠放；未改路径高亮、起点、失败等状态 class 逻辑
 - 新建最小静态前端文件：`index.html`、`style.css`、`app.js`
 - 页面包含 HUD 占位：总花蜜、本轮暂存花蜜、剩余蜜蜂数
-- 19 格盘面按 `2 / 2 / 3 / 3 / 3 / 3 / 2 / 1` 行结构由配置生成，不写死在 DOM
+- 当前盘面按 `2 / 2 / 3 / 3 / 3 / 3 / 2 / 1` 行结构由配置生成，格子总数由布局自动汇总，不再额外写死 `19`
 - 建立基础布局配置：`layoutRows`、`rowTileIds`、`rowSlots`
 - 建立基础数据映射：每格包含 `id / row / col / slotX / neighbors`
 - 建立最小状态结构：`currentStartTileId`、`revealedTiles`、`tileStateMap`、`totalHoney`、`roundHoney`、`remainingBees`
 - 初始状态：仅 `T18` 为已解锁起点，其他格保持未解锁深棕色
 - 为后续玩法预留：`type`、`dangerCount`、`neighbors`、`tilesById`、`adjacencyMap`
 - 调试挂载：`window.demoBoard`
-- 本轮新增随机开局初始化：每次加载按固定数量生成 `3 enemy / 8 flower / 8 empty`
+- 本轮新增随机开局初始化：每次加载按当前比例基准 `3 / 10 / 6` 随实际格子总数动态换算 `enemy / flower / empty`
 - 加入约束：`T18` 永远不会生成为 `enemy`
 - 状态字段升级：统一为 `type / revealed / unlocked / dangerCount / neighbors`
 - 已实现全盘 `dangerCount` 计算，含未解锁格周边天敌计数
@@ -159,6 +162,8 @@
 
 ## 验证记录
 - 已做：
+  0. 改为动态数量分配后再次执行 `node --check app.js`，语法通过
+  0. 代码级确认：`tileTypeCounts` 现基于 `tiles.length` 自动计算，不再要求布局总格子固定等于 `19`
   0. 针对 enemy 双层显示改动执行 `node --check app.js`，语法通过
   0. 代码级确认：enemy 格在普通 revealed 与 `tile--flipping` 背面态都会走双层渲染分支
   0. 静态复核确认：`Bird_01.png` 不再沿用整格 `object-fit: fill`，前景鸟图按比例显示
@@ -166,7 +171,7 @@
   0. 代码级确认：非 flower 类型仍走原单图 `<img class="tile__image">` 渲染分支
   0. 代码级确认：flower 格在普通 revealed 与 `tile--flipping` 背面态均走双层渲染分支
   1. `node --check app.js` 通过语法检查
-  2. Node 循环 200 次验证：每局始终满足 `3 enemy / 8 flower / 8 empty`
+  2. Node 循环 200 次验证：每局始终满足当前布局下动态计算出的 `enemy / flower / empty` 数量约束
   3. Node 循环验证：`T18` 从不生成 `enemy`
   4. Node 循环验证：开局始终只有 `T18` 为已解锁
   5. Node 循环验证：仅 `T18` 邻接的未解锁格显示数字，且数字与周边天敌数一致

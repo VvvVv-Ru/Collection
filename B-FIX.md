@@ -246,6 +246,31 @@
 - 仍需浏览器人工确认去底色后的鸟图边缘是否已满足最终观感
 - 原因：当前会话只能完成代码与资源链路修复，无法替代最终人眼验收
 
+## 本轮新增修复：采花飞花归集动画消失
+### 复现条件
+- 进入新翻开的 flower 格时，本轮暂存花蜜数值仍会增长，但从格子飞向 `本轮暂存` HUD 的飞花动画不再出现
+
+### 根因判断
+- 当前棋盘已改为按需渲染，只把 `revealedTiles + locked danger preview` 挂进 DOM
+- `spawnFlowerFlyEffect(tileId)` 在 `setTileRevealed(tileId)` 之后、`renderAll()` 之前执行
+- 对于刚翻开的 flower 格，如果它上一帧还不在 DOM，`getTileFlightOrigin(tileId)` 会拿不到起点元素
+- `animateFlowerToHud()` 因 `startPoint === null` 直接走兜底分支：只累计 HUD 数值，不创建飞花元素
+
+### 已执行修复
+- 在 `spawnFlowerFlyEffect(tileId)` 内增加一次最小补渲染：
+  - 先尝试读取飞花起点
+  - 若当前格子尚未进 DOM，则先执行 `renderBoard()`
+  - 再次读取起点后再进入飞花调度
+- 这样只修时序问题，不改飞花动效参数、不改玩法链路
+
+### 本轮改了哪些文件
+- `app.js`
+- `B-FIX.md`
+
+### 最小验证
+- `node --check app.js` 通过
+- 代码级确认：新翻开的 flower 格在起点缺失时，现会先补一次棋盘渲染，再创建飞花动画，不再直接落入“只加数字”的兜底分支
+
 ## 给 B-COD 的提醒
 - 不要继续在 `.tile__inner` 上叠加旧占位风格描边
 - 不要再用 `background` 简写覆盖贴图

@@ -1,5 +1,10 @@
-const totalTileCount = 19;
 const lockedDangerPreviewCount = 3;
+const tileTypeRatioBaseCounts = {
+  enemy: 3,
+  flower: 10,
+  empty: 6,
+};
+const tileTypeOrder = ["enemy", "flower", "empty"];
 
 const layoutRows = [2, 2, 3, 3, 3, 3, 2, 1];
 const rowTileIds = [
@@ -79,12 +84,6 @@ const bgmConfig = {
   defaultVolume: 0.3,
   storageKey: "honey-demo:bgm-muted",
 };
-const tileTypeCounts = {
-  enemy: 3,
-  flower: 10,
-  empty: 6,
-};
-
 const boardMetrics = {
   leftPadding: 36,
   topPadding: 62,
@@ -124,6 +123,58 @@ function logEvent(label, payload = {}) {
   console.info(`[HoneyDemo] ${label}`, payload);
 }
 
+function calculateTileTypeCounts(totalTiles) {
+  if (!Number.isInteger(totalTiles) || totalTiles <= 0) {
+    throw new Error("格子总数非法，无法计算类型分配");
+  }
+
+  const baseTotal = Object.values(tileTypeRatioBaseCounts).reduce((sum, count) => sum + count, 0);
+  const counts = { enemy: 0, flower: 0, empty: 0 };
+  const allocations = tileTypeOrder.map((type) => {
+    const rawCount = (tileTypeRatioBaseCounts[type] / baseTotal) * totalTiles;
+    const flooredCount = Math.floor(rawCount);
+    counts[type] = flooredCount;
+
+    return {
+      type,
+      flooredCount,
+      remainder: rawCount - flooredCount,
+      baseWeight: tileTypeRatioBaseCounts[type],
+    };
+  });
+
+  let remainingTiles = totalTiles - Object.values(counts).reduce((sum, count) => sum + count, 0);
+  const sortedAllocations = [...allocations].sort((left, right) => {
+    if (right.remainder !== left.remainder) {
+      return right.remainder - left.remainder;
+    }
+
+    if (right.baseWeight !== left.baseWeight) {
+      return right.baseWeight - left.baseWeight;
+    }
+
+    return tileTypeOrder.indexOf(left.type) - tileTypeOrder.indexOf(right.type);
+  });
+
+  for (let index = 0; index < sortedAllocations.length && remainingTiles > 0; index += 1) {
+    counts[sortedAllocations[index].type] += 1;
+    remainingTiles -= 1;
+  }
+
+  const maxEnemyCount = Math.max(totalTiles - 1, 0);
+  if (counts.enemy > maxEnemyCount) {
+    const overflowEnemyCount = counts.enemy - maxEnemyCount;
+    counts.enemy = maxEnemyCount;
+    const safeTypePriority = sortedAllocations.filter((allocation) => allocation.type !== "enemy");
+
+    for (let index = 0; index < overflowEnemyCount; index += 1) {
+      counts[safeTypePriority[index % safeTypePriority.length].type] += 1;
+    }
+  }
+
+  return counts;
+}
+
 function validateLayoutConfig() {
   const rowCountMatches =
     layoutRows.length === rowTileIds.length && layoutRows.length === rowSlots.length;
@@ -133,23 +184,13 @@ function validateLayoutConfig() {
   const allTileIds = rowTileIds.flat();
   const totalTiles = layoutRows.reduce((sum, count) => sum + count, 0);
   const uniqueTileCount = new Set(allTileIds).size;
-  const expectedTotal = Object.values(tileTypeCounts).reduce((sum, count) => sum + count, 0);
 
-  if (
-    !rowCountMatches ||
-    !everyRowMatches ||
-    totalTiles !== totalTileCount ||
-    uniqueTileCount !== totalTileCount
-  ) {
+  if (!rowCountMatches || !everyRowMatches || totalTiles !== uniqueTileCount) {
     throw new Error("固定盘面配置非法，请检查 layoutRows / rowTileIds / rowSlots");
   }
 
   if (!allTileIds.includes(startTileId)) {
     throw new Error("固定起点不存在于盘面配置中");
-  }
-
-  if (expectedTotal !== totalTileCount) {
-    throw new Error("格子内容数量配置非法，请检查 enemy / flower / empty 总数");
   }
 }
 
@@ -161,6 +202,9 @@ const tiles = rowTileIds.flatMap((ids, rowIndex) =>
     slotX: rowSlots[rowIndex][colIndex],
   }))
 );
+
+const totalTileCount = tiles.length;
+const tileTypeCounts = calculateTileTypeCounts(totalTileCount);
 
 const tilesById = Object.fromEntries(tiles.map((tile) => [tile.id, tile]));
 
@@ -241,7 +285,9 @@ function validateTypeMap(typeMap) {
     summary.flower !== tileTypeCounts.flower ||
     summary.empty !== tileTypeCounts.empty
   ) {
-    throw new Error("自定义 typeMap 不满足 3 / 8 / 8 数量约束");
+    throw new Error(
+      `自定义 typeMap 不满足当前数量约束：enemy ${tileTypeCounts.enemy} / flower ${tileTypeCounts.flower} / empty ${tileTypeCounts.empty}`
+    );
   }
 
   if (typeMap[startTileId] === "enemy") {
@@ -1285,7 +1331,14 @@ function spawnFlowerFlyEffect(tileId) {
     return;
   }
 
-  const startPoint = getTileFlightOrigin(tileId);
+  let startPoint = getTileFlightOrigin(tileId);
+
+  // 新翻开的花格在按需渲染模式下，当前 tick 里可能尚未进入 DOM；先补一次棋盘渲染再取飞花起点。
+  if (!startPoint) {
+    renderBoard();
+    startPoint = getTileFlightOrigin(tileId);
+  }
+
   const runToken = feedbackState.currentRunToken;
   const now = getNow();
   const launchAt = Math.max(now, feedbackState.nextLaunchAt);
