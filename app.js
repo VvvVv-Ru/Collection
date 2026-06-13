@@ -323,6 +323,7 @@ function createInitialGameState(options = {}) {
     isDragging: false,
     dragPointerId: null,
     currentPath: [],
+    currentRunVisitedTileIds: new Set(),
     currentRunHoney: 0,
     lastSafeTileId: startTileId,
     lastConsumedBee: false,
@@ -1708,10 +1709,6 @@ function canEnterTile(tileId) {
     return false;
   }
 
-  if (gameState.currentPath.includes(tileId)) {
-    return false;
-  }
-
   return adjacencyMap[currentTileId].includes(tileId);
 }
 
@@ -1928,6 +1925,7 @@ function beginRun(tileId, pointerId = null) {
   gameState.isDragging = true;
   gameState.dragPointerId = pointerId;
   gameState.currentPath = [tileId];
+  gameState.currentRunVisitedTileIds = new Set([tileId]);
   gameState.currentRunHoney = 0;
   syncRoundHoney(0);
   gameState.lastSafeTileId = tileId;
@@ -2009,6 +2007,7 @@ function completeRun(outcome) {
   gameState.isDragging = false;
   gameState.dragPointerId = null;
   gameState.currentPath = [];
+  gameState.currentRunVisitedTileIds = new Set();
   gameState.hasHitEnemy = false;
   gameState.lastOutcome = outcome;
   if (outcome === "success" && gameState.totalHoney >= honeyGoalTarget) {
@@ -2042,7 +2041,9 @@ function extendRun(tileId) {
   }
 
   const tileState = gameState.tileStateMap[tileId];
+  const wasRevealed = tileState.revealed;
   gameState.currentPath.push(tileId);
+  gameState.currentRunVisitedTileIds.add(tileId);
 
   if (tileState.type === "enemy") {
     setTileRevealed(tileId);
@@ -2062,13 +2063,17 @@ function extendRun(tileId) {
   setTileRevealed(tileId);
   gameState.lastSafeTileId = tileId;
 
-  if (tileState.type === "flower") {
+  if (tileState.type === "flower" && !wasRevealed) {
     gameState.currentRunHoney += 1;
     incrementCombo(tileId);
     spawnFlowerFlyEffect(tileId);
     gameState.statusText = `采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`;
+  } else if (tileState.type === "flower") {
+    gameState.statusText = `经过已采集花格 ${tileId}。`;
+  } else if (!wasRevealed) {
+    gameState.statusText = `进入新安全格 ${tileId}。`;
   } else {
-    gameState.statusText = `进入安全格 ${tileId}。`;
+    gameState.statusText = `经过已采集安全格 ${tileId}。`;
   }
 
   playTileRevealSound();
