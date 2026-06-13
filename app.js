@@ -35,10 +35,12 @@ const animationDurations = {
 const tileAssetMap = {
   hidden: "./assets/tiles/tile-unknown.png",
   empty: "./assets/tiles/tile-empty.png",
-  enemy: "./assets/tiles/tile-enemy.png",
+  enemy: "./assets/tiles/tile-enemy.png?v=enemy-20260613-1",
   flower: "./assets/tiles/tile-flower.png",
 };
 const flowerOverlayAsset = "./assets/tiles/flower_01.png";
+const enemyOverlayAsset = "./assets/tiles/Bird_01.png?v=enemy-20260613-1";
+let enemyOverlayDisplayAsset = enemyOverlayAsset;
 const collectFeedbackConfig = {
   flyDuration: 1000,
   launchInterval: 140,
@@ -1402,12 +1404,123 @@ function getTileAsset(tileState) {
   return tileAssetMap[getTileVisualType(tileState)] ?? tileAssetMap.hidden;
 }
 
+function clampColorChannel(value) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function buildSanitizedEnemyOverlayAsset(image) {
+  if (!hasDom) {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) {
+    return null;
+  }
+
+  context.drawImage(image, 0, 0);
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const { data, width, height } = imageData;
+  let matteRed = 0;
+  let matteGreen = 0;
+  let matteBlue = 0;
+  let matteCount = 0;
+
+  const sampleTransparentPixel = (x, y) => {
+    const index = (y * width + x) * 4;
+    if (data[index + 3] !== 0) {
+      return;
+    }
+
+    matteRed += data[index];
+    matteGreen += data[index + 1];
+    matteBlue += data[index + 2];
+    matteCount += 1;
+  };
+
+  for (let x = 0; x < width; x += 1) {
+    sampleTransparentPixel(x, 0);
+    sampleTransparentPixel(x, height - 1);
+  }
+
+  for (let y = 1; y < height - 1; y += 1) {
+    sampleTransparentPixel(0, y);
+    sampleTransparentPixel(width - 1, y);
+  }
+
+  if (matteCount === 0) {
+    return null;
+  }
+
+  const matteColor = {
+    red: matteRed / matteCount,
+    green: matteGreen / matteCount,
+    blue: matteBlue / matteCount,
+  };
+
+  for (let index = 0; index < data.length; index += 4) {
+    const alpha = data[index + 3] / 255;
+
+    if (alpha <= 0 || alpha >= 1) {
+      continue;
+    }
+
+    const inverseAlpha = 1 - alpha;
+    data[index] = clampColorChannel((data[index] - matteColor.red * inverseAlpha) / alpha);
+    data[index + 1] = clampColorChannel(
+      (data[index + 1] - matteColor.green * inverseAlpha) / alpha
+    );
+    data[index + 2] = clampColorChannel(
+      (data[index + 2] - matteColor.blue * inverseAlpha) / alpha
+    );
+  }
+
+  context.putImageData(imageData, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+function prepareEnemyOverlayAsset() {
+  if (!hasDom) {
+    return;
+  }
+
+  const image = new Image();
+  image.addEventListener(
+    "load",
+    () => {
+      const sanitizedAsset = buildSanitizedEnemyOverlayAsset(image);
+
+      if (!sanitizedAsset) {
+        return;
+      }
+
+      enemyOverlayDisplayAsset = sanitizedAsset;
+      renderAll();
+    },
+    { once: true }
+  );
+  image.src = enemyOverlayAsset;
+}
+
 function getTileVisualMarkup(tileState, fallbackAsset) {
   if (tileState?.revealed && tileState.type === "flower") {
     return `
       <span class="tile__image-stack tile__image-stack--flower">
         <img class="tile__image tile__image--base" src="${tileAssetMap.empty}" alt="" />
         <img class="tile__image tile__image--layer tile__image--flower" src="${flowerOverlayAsset}" alt="" />
+      </span>
+    `;
+  }
+
+  if (tileState?.revealed && tileState.type === "enemy") {
+    return `
+      <span class="tile__image-stack tile__image-stack--enemy">
+        <img class="tile__image tile__image--base" src="${tileAssetMap.enemy}" alt="" />
+        <img class="tile__image tile__image--layer tile__image--enemy" src="${enemyOverlayDisplayAsset}" alt="" />
       </span>
     `;
   }
@@ -2318,6 +2431,7 @@ function init() {
   computeBoardSize();
   attachEventListeners();
   restartGame();
+  prepareEnemyOverlayAsset();
   initBgm();
 }
 

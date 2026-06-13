@@ -431,6 +431,16 @@ body::before {
   transform-origin: top center;
 }
 
+.tile__image--enemy {
+  z-index: 1;
+  width: 62%;
+  height: auto;
+  inset: calc(12% - 14px) auto auto 50%;
+  transform: translateX(-50%);
+  object-fit: contain;
+  transform-origin: top center;
+}
+
 .tile--start .tile__ring {
   opacity: 0;
   transform: scale(1.03);

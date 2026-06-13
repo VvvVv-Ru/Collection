@@ -1,12 +1,15 @@
 # B-COD 记录
 
 ## Claim
-- 任务 ID：A-PLN-ART-TILE-FLOWER-01
-- 当前 claim：模块 M1《小花格子双层资源叠加显示》
-- 范围：仅修改 flower 格显示层，将单张 `tile-flower.png` 改为 `tile-empty.png + flower_01.png` 双层渲染；不改玩法逻辑、数据结构、类型定义、判定与音效链路
+- 任务 ID：ART-TILE-ENEMY-01
+- 当前 claim：模块《天敌格子双层资源叠加显示》
+- 范围：仅修改 enemy 格显示层，将单张 `tile-enemy.png` 改为 `tile-enemy.png + Bird_01.png` 双层渲染；不改玩法逻辑、数据结构、类型定义、判定与音效链路
 - 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）、`FX-02`（起点格子强化标识）、`RULE-01`（取消起点继承 + 自由选择起点）、`RULE-02`（蜜蜂消耗保护机制）、`RULE-03 / FX-03`（删除固定起点 UI + 非法点击反馈）
 
 ## 实现记录
+- 本轮新增 `enemyOverlayAsset` 常量，指向 `./assets/tiles/Bird_01.png`，作为 enemy 格前景资源入口
+- `getTileVisualMarkup(tileState, fallbackAsset)` 新增 `revealed && type === "enemy"` 分支：底图继续使用 `tile-enemy.png`，前景叠加 `Bird_01.png`
+- 本轮新增样式 `.tile__image--enemy`，单独控制天敌前景图的尺寸与锚点，避免沿用整格拉伸导致形变
 - 本轮新增 `flowerOverlayAsset` 常量，指向 `./assets/tiles/flower_01.png`，作为 flower 格前景资源入口
 - 本轮新增 `getTileVisualMarkup(tileState, fallbackAsset)`：仅对 `revealed && type === "flower"` 输出双层结构，其它格保持原单图渲染
 - `createTileElement()` 的静态态与翻牌背面态，现统一复用 `getTileVisualMarkup()`；普通花格与翻牌中的花格都会显示为 `tile-empty.png + flower_01.png`
@@ -156,6 +159,9 @@
 
 ## 验证记录
 - 已做：
+  0. 针对 enemy 双层显示改动执行 `node --check app.js`，语法通过
+  0. 代码级确认：enemy 格在普通 revealed 与 `tile--flipping` 背面态都会走双层渲染分支
+  0. 静态复核确认：`Bird_01.png` 不再沿用整格 `object-fit: fill`，前景鸟图按比例显示
   0. 针对 flower 显示层改动执行 `node --check app.js`，语法通过
   0. 代码级确认：非 flower 类型仍走原单图 `<img class="tile__image">` 渲染分支
   0. 代码级确认：flower 格在普通 revealed 与 `tile--flipping` 背面态均走双层渲染分支
