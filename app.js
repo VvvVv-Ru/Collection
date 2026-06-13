@@ -38,6 +38,7 @@ const tileAssetMap = {
   enemy: "./assets/tiles/tile-enemy.png",
   flower: "./assets/tiles/tile-flower.png",
 };
+const flowerOverlayAsset = "./assets/tiles/flower_01.png";
 const collectFeedbackConfig = {
   flyDuration: 1000,
   launchInterval: 140,
@@ -1401,6 +1402,19 @@ function getTileAsset(tileState) {
   return tileAssetMap[getTileVisualType(tileState)] ?? tileAssetMap.hidden;
 }
 
+function getTileVisualMarkup(tileState, fallbackAsset) {
+  if (tileState?.revealed && tileState.type === "flower") {
+    return `
+      <span class="tile__image-stack tile__image-stack--flower">
+        <img class="tile__image tile__image--base" src="${tileAssetMap.empty}" alt="" />
+        <img class="tile__image tile__image--layer tile__image--flower" src="${flowerOverlayAsset}" alt="" />
+      </span>
+    `;
+  }
+
+  return `<img class="tile__image" src="${fallbackAsset}" alt="" />`;
+}
+
 function getCurrentTileId() {
   if (gameState.currentPath.length === 0) {
     return gameState.currentStartTileId;
@@ -1555,10 +1569,10 @@ function createTileElement(tile) {
         <img class="tile__image" src="${tileAssetMap.hidden}" alt="" />
       </span>
       <span class="tile__face tile__face--back" aria-hidden="true">
-        <img class="tile__image" src="${tileAsset}" alt="" />
+        ${getTileVisualMarkup(state, tileAsset)}
       </span>
     `
-    : `<img class="tile__image" src="${tileAsset}" alt="" />`;
+    : getTileVisualMarkup(state, tileAsset);
 
   button.innerHTML = `
     <span class="tile__ring" aria-hidden="true"></span>

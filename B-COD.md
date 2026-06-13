@@ -1,12 +1,16 @@
 # B-COD 记录
 
 ## Claim
-- 任务 ID：B-COD-DEMO-FEEDBACK-003
-- 当前 claim：模块《花朵采集连击反馈（Combo System）》
-- 范围：接入全局 Combo UI、按采花累计的连击状态、2.5 秒超时结束、升级音效与强化档样式；不改收益数值、飞花主逻辑、移动端专项适配
+- 任务 ID：A-PLN-ART-TILE-FLOWER-01
+- 当前 claim：模块 M1《小花格子双层资源叠加显示》
+- 范围：仅修改 flower 格显示层，将单张 `tile-flower.png` 改为 `tile-empty.png + flower_01.png` 双层渲染；不改玩法逻辑、数据结构、类型定义、判定与音效链路
 - 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）、`FX-02`（起点格子强化标识）、`RULE-01`（取消起点继承 + 自由选择起点）、`RULE-02`（蜜蜂消耗保护机制）、`RULE-03 / FX-03`（删除固定起点 UI + 非法点击反馈）
 
 ## 实现记录
+- 本轮新增 `flowerOverlayAsset` 常量，指向 `./assets/tiles/flower_01.png`，作为 flower 格前景资源入口
+- 本轮新增 `getTileVisualMarkup(tileState, fallbackAsset)`：仅对 `revealed && type === "flower"` 输出双层结构，其它格保持原单图渲染
+- `createTileElement()` 的静态态与翻牌背面态，现统一复用 `getTileVisualMarkup()`；普通花格与翻牌中的花格都会显示为 `tile-empty.png + flower_01.png`
+- 本轮新增样式 `.tile__image-stack / .tile__image--layer / .tile__image--flower`，用于双层图片叠放；未改路径高亮、起点、失败等状态 class 逻辑
 - 新建最小静态前端文件：`index.html`、`style.css`、`app.js`
 - 页面包含 HUD 占位：总花蜜、本轮暂存花蜜、剩余蜜蜂数
 - 19 格盘面按 `2 / 2 / 3 / 3 / 3 / 3 / 2 / 1` 行结构由配置生成，不写死在 DOM
@@ -152,6 +156,9 @@
 
 ## 验证记录
 - 已做：
+  0. 针对 flower 显示层改动执行 `node --check app.js`，语法通过
+  0. 代码级确认：非 flower 类型仍走原单图 `<img class="tile__image">` 渲染分支
+  0. 代码级确认：flower 格在普通 revealed 与 `tile--flipping` 背面态均走双层渲染分支
   1. `node --check app.js` 通过语法检查
   2. Node 循环 200 次验证：每局始终满足 `3 enemy / 8 flower / 8 empty`
   3. Node 循环验证：`T18` 从不生成 `enemy`
@@ -217,5 +224,6 @@
    24. 反复进入/结束 Combo，并切换标签页再回来，确认状态不残留、位置不乱跳
 
 ## 协作需求
+- 本模块 M1 已可交给 `B-FIX` 做视觉回归，重点检查：花层居中、透明边、翻牌前后、路径高亮 / 起点 / 失败状态是否遮挡前景花层
 - 默认可交给 `B-FIX` 做浏览器实机回归：Combo 浮层跟随最新采花格、强化档视觉、2.5 秒结束渐隐、音效节流，以及与飞花 / 自定义光标 / BGM 的并存观感
 - 本模块完成后建议回流 `@A-PLN` 做阶段收口；若先做人眼验收，也可先交 `A-ASK` / 用户按上方步骤检查，再决定是否补第二轮爽感优化
