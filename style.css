@@ -328,6 +328,31 @@ body::before {
   overflow: visible;
 }
 
+.tile--appearing {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: tile-appear-pop var(--tile-appear-duration, 300ms)
+    var(--tile-appear-easing, cubic-bezier(0.22, 1, 0.36, 1)) forwards;
+  animation-delay: var(--tile-appear-delay, 0ms);
+}
+
+@keyframes tile-appear-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(var(--tile-appear-start-scale, 0.7));
+  }
+
+  65% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(var(--tile-appear-overshoot-scale, 1.1));
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 /* 翻面动效：解锁瞬间从未知面翻向真实地块 */
 .tile--flipping .tile__inner {
   transform-style: preserve-3d;

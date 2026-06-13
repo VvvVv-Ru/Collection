@@ -40,6 +40,14 @@ const animationDurations = {
   toast: 1400,
   tileFlip: 260,
 };
+const defaultTileAppearConfig = Object.freeze({
+  durationMs: 300,
+  staggerMs: 40,
+  startScale: 0.7,
+  overshootScale: 1.1,
+  easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+});
+const tileAppearConfig = { ...defaultTileAppearConfig };
 const tileAssetMap = {
   hidden: "./assets/tiles/tile-unknown.png",
   empty: "./assets/tiles/tile-empty.png",
@@ -387,6 +395,8 @@ function createInitialGameState(options = {}) {
     isGameOver: false,
     isGameWin: false,
     tileStateMap,
+    seenVisibleTileIds: new Set(),
+    tileAppearances: {},
   };
 }
 
@@ -1477,6 +1487,74 @@ function getVisibleDangerCount(tileId) {
   return getLockedDangerPreviewTileIds().includes(tileId) ? state.dangerCount : null;
 }
 
+function getTileAppearConfigSnapshot() {
+  return { ...tileAppearConfig };
+}
+
+function applyTileAppearConfig(nextConfig = {}) {
+  if (!nextConfig || typeof nextConfig !== "object") {
+    return getTileAppearConfigSnapshot();
+  }
+
+  const maybeAssignNumber = (key, min = 0) => {
+    if (!(key in nextConfig)) {
+      return;
+    }
+
+    const value = Number(nextConfig[key]);
+    if (Number.isFinite(value) && value >= min) {
+      tileAppearConfig[key] = value;
+    }
+  };
+
+  maybeAssignNumber("durationMs", 0);
+  maybeAssignNumber("staggerMs", 0);
+  maybeAssignNumber("startScale", 0);
+  maybeAssignNumber("overshootScale", 0);
+
+  if (typeof nextConfig.easing === "string" && nextConfig.easing.trim()) {
+    tileAppearConfig.easing = nextConfig.easing.trim();
+  }
+
+  triggerRenderOnly();
+  return getTileAppearConfigSnapshot();
+}
+
+function buildTileAppearanceFrameMap(visibleTileIds) {
+  const now = getNow();
+  const newlyVisibleTileIds = tiles
+    .filter((tile) => visibleTileIds.has(tile.id) && !gameState.seenVisibleTileIds.has(tile.id))
+    .map((tile) => tile.id);
+
+  newlyVisibleTileIds.forEach((tileId, index) => {
+    gameState.tileAppearances[tileId] = {
+      startedAt: now,
+      delayMs: index * tileAppearConfig.staggerMs,
+    };
+    gameState.seenVisibleTileIds.add(tileId);
+  });
+
+  const nextAppearances = {};
+  const frameMap = {};
+
+  Object.entries(gameState.tileAppearances).forEach(([tileId, appearance]) => {
+    const elapsed = now - appearance.startedAt;
+    const totalDuration = appearance.delayMs + tileAppearConfig.durationMs;
+
+    if (elapsed >= totalDuration) {
+      return;
+    }
+
+    nextAppearances[tileId] = appearance;
+    frameMap[tileId] = {
+      delayMs: appearance.delayMs - elapsed,
+    };
+  });
+
+  gameState.tileAppearances = nextAppearances;
+  return frameMap;
+}
+
 function computeBoardSize() {
   if (!dom?.board) {
     return;
@@ -1815,7 +1893,7 @@ function renderHud() {
   }
 }
 
-function createTileElement(tile) {
+function createTileElement(tile, appearanceFrameMap = {}) {
   const state = gameState.tileStateMap[tile.id];
   const isRevealed = state.revealed;
   const displayStartTileId = getDisplayStartTileId();
@@ -1827,6 +1905,7 @@ function createTileElement(tile) {
   const isStartPulse = tile.id === gameState.startPulseTileId;
   const isFlipping = gameState.flipTileIds.includes(tile.id);
   const isStartCandidate = !gameState.isDragging && !gameState.isGameOver && isValidStartCandidate(tile.id);
+  const appearanceMeta = appearanceFrameMap[tile.id] ?? null;
   const visibleDangerCount = getVisibleDangerCount(tile.id);
   const tileAsset = getTileAsset(state);
   const ariaState = isRevealed
@@ -1848,6 +1927,7 @@ function createTileElement(tile) {
     isEnemy ? "tile--enemy" : "",
     isShaking ? "tile--shake" : "",
     isFlipping ? "tile--flipping" : "",
+    appearanceMeta ? "tile--appearing" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -1859,6 +1939,16 @@ function createTileElement(tile) {
     "--top",
     `${boardMetrics.topPadding + tile.row * boardMetrics.yUnit}px`
   );
+  if (appearanceMeta) {
+    button.style.setProperty("--tile-appear-delay", `${appearanceMeta.delayMs}ms`);
+    button.style.setProperty("--tile-appear-duration", `${tileAppearConfig.durationMs}ms`);
+    button.style.setProperty("--tile-appear-start-scale", String(tileAppearConfig.startScale));
+    button.style.setProperty(
+      "--tile-appear-overshoot-scale",
+      String(tileAppearConfig.overshootScale)
+    );
+    button.style.setProperty("--tile-appear-easing", tileAppearConfig.easing);
+  }
   button.style.setProperty("--tile-image", `url("${tileAsset}")`);
   button.dataset.tileId = tile.id;
   button.dataset.row = String(tile.row);
@@ -1906,6 +1996,7 @@ function renderBoard() {
   }
 
   const visibleTileIds = getVisibleTileIds();
+  const appearanceFrameMap = buildTileAppearanceFrameMap(visibleTileIds);
   dom.board.classList.toggle("board--fail-flash", gameState.isFailFlash);
   dom.board.classList.toggle("board--collecting", gameState.isDragging);
   dom.board.innerHTML = "";
@@ -1916,7 +2007,7 @@ function renderBoard() {
       return;
     }
 
-    fragment.appendChild(createTileElement(tile));
+    fragment.appendChild(createTileElement(tile, appearanceFrameMap));
   });
 
   dom.board.appendChild(fragment);
@@ -2485,6 +2576,9 @@ function syncDebugHandle() {
         lastTileId: comboState.lastTileId,
       };
     },
+    get tileAppearConfig() {
+      return getTileAppearConfigSnapshot();
+    },
     createInitialGameState,
     hasRevealedNeighbor,
     getVisibleDangerCount,
@@ -2501,6 +2595,9 @@ function syncDebugHandle() {
     spawnFlowerFlyEffect,
     getRoundConfigSnapshot,
     getStateSnapshot,
+    setTileAppearConfig(nextConfig = {}) {
+      return applyTileAppearConfig(nextConfig);
+    },
     resetGame(options = {}) {
       return restartGame(options);
     },
