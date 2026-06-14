@@ -2207,13 +2207,13 @@ function extendRun(tileId) {
   setTileRevealed(tileId);
   gameState.lastSafeTileId = tileId;
 
-  if (tileState.type === "flower" && !wasRevealed) {
+  if (tileState.type === "flower") {
     gameState.currentRunHoney += 1;
     incrementCombo(tileId);
     spawnFlowerFlyEffect(tileId);
-    gameState.statusText = `采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`;
-  } else if (tileState.type === "flower") {
-    gameState.statusText = `经过已采集花格 ${tileId}。`;
+    gameState.statusText = wasRevealed
+      ? `再次采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`
+      : `采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`;
   } else if (!wasRevealed) {
     gameState.statusText = `进入新安全格 ${tileId}。`;
   } else {

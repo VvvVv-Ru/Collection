@@ -271,6 +271,35 @@
 - `node --check app.js` 通过
 - 代码级确认：新翻开的 flower 格在起点缺失时，现会先补一次棋盘渲染，再创建飞花动画，不再直接落入“只加数字”的兜底分支
 
+## 本轮新增修复：已采集花格二次进入不再加花蜜
+### 复现条件
+- 某个 flower 格在前一轮已经被翻开并采集过
+- 后续轮次再次滑入该 flower 格时，提示文案变成“经过已采集花格”，本轮暂存花蜜不增长
+
+### 根因判断
+- `extendRun(tileId)` 内把 flower 的收益绑定在 `tileState.type === "flower" && !wasRevealed`
+- 这意味着只有“第一次翻开”的花格才会执行：
+  - `currentRunHoney += 1`
+  - `incrementCombo(tileId)`
+  - `spawnFlowerFlyEffect(tileId)`
+- 一旦花格已在之前轮次被 reveal，后续再次进入只会走状态文案分支，不再给花蜜
+
+### 已执行修复
+- 将 flower 的收益逻辑恢复为“进入 flower 格就加 1”，不再依赖 `!wasRevealed`
+- 已 reveal 的 flower 格再次进入时，也会正常触发：
+  - 花蜜累加
+  - Combo
+  - 飞花归集动画
+- 文案同步改为区分“首次采到”和“再次采到”
+
+### 本轮改了哪些文件
+- `app.js`
+- `B-FIX.md`
+
+### 最小验证
+- `node --check app.js` 通过
+- 代码级确认：`flower` 分支不再受 `!wasRevealed` 限制，跨轮次再次进入已翻开的花格也会增加本轮暂存花蜜
+
 ## 给 B-COD 的提醒
 - 不要继续在 `.tile__inner` 上叠加旧占位风格描边
 - 不要再用 `background` 简写覆盖贴图
