@@ -656,9 +656,9 @@ body::before {
 
 .custom-cursor__ring {
   position: absolute;
-  inset: -10px;
-  width: calc(100% + 20px);
-  height: calc(100% + 20px);
+  inset: -4.5px;
+  width: calc(100% + 9px);
+  height: calc(100% + 9px);
   pointer-events: none;
   transform: rotate(-90deg);
   transform-origin: center center;
@@ -668,7 +668,7 @@ body::before {
 .custom-cursor__ring-track,
 .custom-cursor__ring-progress {
   fill: none;
-  stroke-width: 7;
+  stroke-width: 10;
 }
 
 .custom-cursor__ring-track {
@@ -677,7 +677,7 @@ body::before {
 }
 
 .custom-cursor__ring-progress {
-  stroke: #2ab6b6;
+  stroke: #27d2cf;
   stroke-linecap: round;
   stroke-dasharray: var(--bee-ring-circumference);
   stroke-dashoffset: calc(var(--bee-ring-circumference) * (1 - var(--bee-stamina, 1)));
