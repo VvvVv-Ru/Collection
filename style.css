@@ -638,10 +638,10 @@ body::before {
   position: fixed;
   left: 0;
   top: 0;
-  width: 56px;
-  height: 56px;
-  margin-left: -28px;
-  margin-top: -28px;
+  width: 45.36px;
+  height: 45.36px;
+  margin-left: -22.68px;
+  margin-top: -22.68px;
   pointer-events: none;
   will-change: transform;
   z-index: 9999;

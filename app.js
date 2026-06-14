@@ -103,7 +103,7 @@ const boardMetrics = {
   xUnit: 66,
   yUnit: 99,
 };
-const boardDisplayScale = 1.3;
+const boardDisplayScale = 1.7;
 
 const hasDom = typeof document !== "undefined";
 
