@@ -300,6 +300,36 @@
 - `node --check app.js` 通过
 - 代码级确认：`flower` 分支不再受 `!wasRevealed` 限制，跨轮次再次进入已翻开的花格也会增加本轮暂存花蜜
 
+## 本轮新增修复：同一只蜜蜂同轮内重复路过花格会重复加蜜
+### 复现条件
+- 同一轮采集中：滑入花格 → 走开 → 绕回再次滑入同一朵花
+- 当前实现下，每次滑入都会再 +1 花蜜，并再次触发 Combo 与飞花
+
+### 根因判断
+- `canEnterTile()` 现在只校验“相邻 + 非当前格”，并不阻止本轮内再次走入已访问过的格子
+- `extendRun()` 内 flower 收益只看 `tileState.type === "flower"`，没有本轮花格采集去重
+- 期望规则：同一只蜜蜂一轮内，每朵花最多采集一次；下一只蜜蜂才会重新可采
+
+### 已执行修复
+- `gameState` 新增 `currentRunHarvestedTileIds: Set`，专门记录“本轮已经采过的花格”
+- `beginRun()` 重置为空集
+- `extendRun()` 内 flower 分支拆成两段：
+  - 本轮第一次进入：加蜜 + Combo + 飞花，同时把 tileId 加入 `currentRunHarvestedTileIds`
+  - 本轮已采过：只算“路过”，不加蜜、不连击、不放飞花
+- 体力消耗不变：路过仍然扣 1 格体力
+- `completeRun()` 收尾清空 `currentRunHarvestedTileIds`
+
+### 本轮改了哪些文件
+- `app.js`
+- `B-FIX.md`
+
+### 最小验证
+- `node --check app.js` 通过
+- Node 沙盒模拟两轮：
+  - R1 同轮 T17→T15→T17：第一次 T17 +1、第二次 T17 不加蜜，本轮入库 2
+  - R2 新蜜蜂同一朵 T17：可再次 +1，跨轮规则正常
+- 代码级确认：天敌分支不受影响，仍走原失败结算
+
 ## 给 B-COD 的提醒
 - 不要继续在 `.tile__inner` 上叠加旧占位风格描边
 - 不要再用 `background` 简写覆盖贴图

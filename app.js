@@ -383,6 +383,7 @@ function createInitialGameState(options = {}) {
     dragPointerId: null,
     currentPath: [],
     currentRunVisitedTileIds: new Set(),
+    currentRunHarvestedTileIds: new Set(),
     currentRunHoney: 0,
     beeStamina: beeStaminaConfig.maxPerRun,
     beeStaminaExhausted: false,
@@ -2078,6 +2079,7 @@ function beginRun(tileId, pointerId = null) {
   gameState.dragPointerId = pointerId;
   gameState.currentPath = [tileId];
   gameState.currentRunVisitedTileIds = new Set([tileId]);
+  gameState.currentRunHarvestedTileIds = new Set();
   gameState.currentRunHoney = 0;
   syncRoundHoney(0);
   gameState.lastSafeTileId = tileId;
@@ -2166,6 +2168,7 @@ function completeRun(outcome) {
   gameState.dragPointerId = null;
   gameState.currentPath = [];
   gameState.currentRunVisitedTileIds = new Set();
+  gameState.currentRunHarvestedTileIds = new Set();
   gameState.hasHitEnemy = false;
   gameState.lastOutcome = outcome;
   // 体力环不在本轮收尾时回满，保留当前残量直到下一轮 beginRun 再统一重置；
@@ -2223,13 +2226,16 @@ function extendRun(tileId) {
   setTileRevealed(tileId);
   gameState.lastSafeTileId = tileId;
 
-  if (tileState.type === "flower") {
+  if (tileState.type === "flower" && !gameState.currentRunHarvestedTileIds.has(tileId)) {
+    // 本轮第一次进入这朵花：加蜜 + Combo + 飞花
+    gameState.currentRunHarvestedTileIds.add(tileId);
     gameState.currentRunHoney += 1;
     incrementCombo(tileId);
     spawnFlowerFlyEffect(tileId);
-    gameState.statusText = wasRevealed
-      ? `再次采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`
-      : `采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`;
+    gameState.statusText = `采到小白花：本轮暂存花蜜 ${gameState.currentRunHoney}。`;
+  } else if (tileState.type === "flower") {
+    // 本轮已经采过这朵花：算路过，不加蜜、不放飞花、不连击；下一轮新蜜蜂才会重新可采
+    gameState.statusText = `路过本轮已采花格 ${tileId}。`;
   } else if (!wasRevealed) {
     gameState.statusText = `进入新安全格 ${tileId}。`;
   } else {
