@@ -1,12 +1,25 @@
 # B-COD 记录
 
 ## Claim
-- 任务 ID：ART-TILE-ENEMY-01
-- 当前 claim：模块《天敌格子双层资源叠加显示》
-- 范围：仅修改 enemy 格显示层，将单张 `tile-enemy.png` 改为 `tile-enemy.png + Bird_01.png` 双层渲染；不改玩法逻辑、数据结构、类型定义、判定与音效链路
+- 任务 ID：UI-BEE-STAMINA-01
+- 当前 claim：模块《自定义蜜蜂光标体力环 + 单轮采集格数上限》
+- 范围：在 `#custom-cursor` 内追加 SVG 体力环 DOM、新增 `beeStaminaConfig / gameState.beeStamina`、在 `beginRun() / extendRun()` 上接入扣减与自动结算；不改格子数据结构、不改飞花/Combo/BGM 链路、不改天敌触发逻辑
+- 历史 claim 已闭环：`ART-TILE-ENEMY-01`（天敌格子双层资源叠加显示）
 - 历史 claim 已闭环：`B-COD-DEMO-FEEDBACK-001`（花朵采集反馈）、`B-COD-DEMO-FEEDBACK-002`（自定义光标）、`B-COD-DEMO-FEEDBACK-002-A`（光标资源接入）、`SFX-01`（翻格音效）、`SFX-02`（撞天敌音效）、`FX-01`（采集范围高亮）、`B-COD-DEMO-AUDIO-001`（主背景 BGM 接入）、`FX-02`（起点格子强化标识）、`RULE-01`（取消起点继承 + 自由选择起点）、`RULE-02`（蜜蜂消耗保护机制）、`RULE-03 / FX-03`（删除固定起点 UI + 非法点击反馈）
 
 ## 实现记录
+- 本轮新增 `beeStaminaConfig = { maxPerRun: 8, countStartTile: true }`，单点维护“一只蜜蜂单轮采集格数上限”与“起点是否算 1 格”
+- `gameState` 新增 `beeStamina / beeStaminaExhausted`，按轮维护当前蜜蜂体力与耗尽态
+- 新增 `setBeeStaminaDisplay(ratio, exhausted)` / `syncBeeStaminaFromState()`：把游戏态投射到 `#custom-cursor` 的 `--bee-stamina` 与 `.custom-cursor--exhausted` 类
+- `beginRun()` 内重置体力：`beeStamina = maxPerRun`，若 `countStartTile` 则同步扣 1（表示按下起点也算 1 格）
+- `extendRun()` 安全分支结尾扣 1 格体力；体力归 0 时立即调用 `completeRun("success")` 自动结算本轮，标志位 `beeStaminaExhausted = true`
+- `completeRun()` 不重置体力环，保留耗尽态直到下一轮 `beginRun()` 触发回满；避免松手瞬间出现“环回满”的视觉跳变
+- `restartGame()` 收尾增加一次 `syncBeeStaminaFromState()`，开局体力环显示与状态一致
+- DOM 改造：`#custom-cursor` 内追加 `svg.custom-cursor__ring`，含底圆 `.custom-cursor__ring-track` 与进度圆 `.custom-cursor__ring-progress`；内层 `.custom-cursor__inner` 仍负责蜜蜂图与 pop / fade 动画，不受体力环影响
+- 样式接入：`.custom-cursor__ring-progress` 使用 `stroke-dasharray = var(--bee-ring-circumference)` 与 `stroke-dashoffset = calc(circumference * (1 - var(--bee-stamina)))`，配合 220ms 缓动实现平滑减少
+- 12 点起笔：`.custom-cursor__ring` 整体 `transform: rotate(-90deg)`；端点圆角 `stroke-linecap: round`
+- 耗尽态：`.custom-cursor--exhausted` 切换青弧为深灰描边，并对整圈施加 1Hz `bee-ring-pulse` 缩放动画
+- 缓存：`index.html` 中 `app.js / style.css` 引用版本号升级为 `bee-stamina-20260614-1`
 - 本轮新增 `tileTypeRatioBaseCounts = { enemy: 3, flower: 10, empty: 6 }`，作为动态分配的比例基准
 - 本轮新增 `calculateTileTypeCounts(totalTiles)`：按当前比例基准与实际格子总数动态换算 `enemy / flower / empty` 数量，并保证 `T18` 不会落入 enemy
 - `tileTypeCounts` 不再写死 19 格固定数量，现改为基于 `tiles.length` 自动计算
@@ -159,9 +172,19 @@
 - 非法点击样式：`.tile--invalid-flash`（位于 `style.css`）
 - Combo 配置入口：`comboConfig`（位于 `app.js`，当前含 `timeoutMs / fadeOutMs / followDurationMs / followEasing / offsetY / soundThrottleMs`）
 - Combo 样式入口：`.combo-overlay`、`.combo-popup`、`.combo-popup__label`、`.combo-popup__count`、`.combo-popup--enter`、`.combo-popup--pop`、`.combo-popup--exit`、`.combo-popup--tier-1/2/3`、keyframes `combo-enter` / `combo-pop`（位于 `style.css`）
+- 蜜蜂体力上限配置入口：`beeStaminaConfig`（位于 `app.js`，含 `maxPerRun / countStartTile`）
+- 蜜蜂体力运行态：`gameState.beeStamina` / `gameState.beeStaminaExhausted`
+- 蜜蜂体力显示更新函数：`setBeeStaminaDisplay(ratio, exhausted)` / `syncBeeStaminaFromState()`（位于 `app.js`）
+- 蜜蜂体力环 DOM：`#custom-cursor > svg.custom-cursor__ring > .custom-cursor__ring-track + .custom-cursor__ring-progress`（位于 `index.html`）
+- 蜜蜂体力环样式入口：`.custom-cursor__ring` / `.custom-cursor__ring-track` / `.custom-cursor__ring-progress` / `.custom-cursor--exhausted`、keyframes `bee-ring-pulse`、CSS 变量 `--bee-stamina / --bee-ring-circumference`（位于 `style.css`）
 
 ## 验证记录
-- 已做：
+- 已做:
+  0. 接入体力环 + 单轮采集格数上限后再次执行 `node --check app.js`，语法通过
+  0. 代码级确认：`beginRun()` 重置 `beeStamina = 8`，若 `countStartTile=true` 同步扣 1
+  0. 代码级确认：`extendRun()` 的安全分支每次推进路径都会扣 1 格体力，且体力归 0 时立即触发 `completeRun("success")`
+  0. 代码级确认：天敌分支不动体力，仍走原 enemy 失败结算链路
+  0. 代码级确认：`completeRun()` 不再写体力，保留耗尽态直到下一轮 `beginRun()` 重置，避免视觉跳变
   0. 改为动态数量分配后再次执行 `node --check app.js`，语法通过
   0. 代码级确认：`tileTypeCounts` 现基于 `tiles.length` 自动计算，不再要求布局总格子固定等于 `19`
   0. 针对 enemy 双层显示改动执行 `node --check app.js`，语法通过

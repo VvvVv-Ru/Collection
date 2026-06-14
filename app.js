@@ -85,6 +85,11 @@ const tileRevealSoundAsset = "./assets/audio/sfx/tile-reveal.wav";
 const tileEnemyHitSoundAsset = "./assets/audio/sfx/tile-enemy-hit.wav";
 const comboSoundAsset = "./assets/audio/sfx/sfx-combo.mp3";
 const customCursorAsset = "./assets/ui/cursor/cursor-default.png";
+const beeStaminaConfig = {
+  maxPerRun: 8,
+  // 是否把“按下起点的那一格”也算作消耗 1 格
+  countStartTile: true,
+};
 const audioAssetMap = {
   bgmMain: "./assets/audio/bgm/bgm-main.mp3",
 };
@@ -379,6 +384,8 @@ function createInitialGameState(options = {}) {
     currentPath: [],
     currentRunVisitedTileIds: new Set(),
     currentRunHoney: 0,
+    beeStamina: beeStaminaConfig.maxPerRun,
+    beeStaminaExhausted: false,
     lastSafeTileId: startTileId,
     lastConsumedBee: false,
     hasHitEnemy: false,
@@ -2035,6 +2042,7 @@ function restartGame(options = {}) {
   });
   renderAll();
   syncDebugHandle();
+  syncBeeStaminaFromState();
   return gameState;
 }
 
@@ -2075,6 +2083,12 @@ function beginRun(tileId, pointerId = null) {
   gameState.lastSafeTileId = tileId;
   gameState.hasHitEnemy = false;
   gameState.lastOutcome = null;
+  gameState.beeStamina = beeStaminaConfig.maxPerRun;
+  gameState.beeStaminaExhausted = false;
+  if (beeStaminaConfig.countStartTile) {
+    gameState.beeStamina = Math.max(0, gameState.beeStamina - 1);
+  }
+  syncBeeStaminaFromState();
   playStartSelectSound();
   triggerStartPulse(tileId);
   gameState.statusText = "采集中：滑入相邻格，松手后结算。";
@@ -2154,6 +2168,8 @@ function completeRun(outcome) {
   gameState.currentRunVisitedTileIds = new Set();
   gameState.hasHitEnemy = false;
   gameState.lastOutcome = outcome;
+  // 体力环不在本轮收尾时回满，保留当前残量直到下一轮 beginRun 再统一重置；
+  // 这样玩家松手 / 自动结算瞬间不会出现“环突然回满”的视觉跳变。
   if (outcome === "success" && gameState.totalHoney >= honeyGoalTarget) {
     gameState.isGameWin = true;
     gameState.isGameOver = true;
@@ -2222,14 +2238,33 @@ function extendRun(tileId) {
 
   playTileRevealSound();
 
+  // 体力消耗：进入任意安全格（flower / empty）都扣 1 格体力
+  gameState.beeStamina = Math.max(0, gameState.beeStamina - 1);
+  const justExhausted = gameState.beeStamina === 0 && !gameState.beeStaminaExhausted;
+  if (gameState.beeStamina === 0) {
+    gameState.beeStaminaExhausted = true;
+  }
+  syncBeeStaminaFromState();
+
   logEvent("路径加入格子", {
     tileId,
     tileType: tileState.type,
     path: [...gameState.currentPath],
     currentRunHoney: gameState.currentRunHoney,
+    beeStamina: gameState.beeStamina,
   });
 
   renderAll();
+
+  if (justExhausted) {
+    logEvent("蜜蜂体力耗尽，自动结算本轮", {
+      tileId,
+      path: [...gameState.currentPath],
+      currentRunHoney: gameState.currentRunHoney,
+    });
+    return completeRun("success");
+  }
+
   return { ok: true, reason: "moved", tileId, tileType: tileState.type };
 }
 
@@ -2476,6 +2511,27 @@ function handleCustomCursorPointerEnd(event) {
   }
 
   hideCustomCursor();
+}
+
+function setBeeStaminaDisplay(ratio, exhausted) {
+  if (!hasDom) {
+    return;
+  }
+
+  const cursorEl = getCustomCursorElement();
+  if (!cursorEl) {
+    return;
+  }
+
+  const clamped = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 1));
+  cursorEl.style.setProperty("--bee-stamina", String(clamped));
+  cursorEl.classList.toggle("custom-cursor--exhausted", !!exhausted);
+}
+
+function syncBeeStaminaFromState() {
+  const max = beeStaminaConfig.maxPerRun || 1;
+  const ratio = Math.max(0, Math.min(1, gameState.beeStamina / max));
+  setBeeStaminaDisplay(ratio, gameState.beeStaminaExhausted);
 }
 
 function attachCustomCursorListeners() {
