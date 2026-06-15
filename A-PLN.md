@@ -546,3 +546,66 @@
 3. 下一轮采该格 sprout：silentBounce 跳 + 顶点切回 bloom，无花蜜、无 Combo、无飞花
 4. 撞天敌：阶段不变
 5. `node --check app.js` 通过
+
+---
+
+## 任务卡：关卡体系（A-PLN-LEVEL-DESIGN-FINAL）
+
+- 任务 ID：`A-PLN-LEVEL-DESIGN-FINAL`
+- 目标：把单关游戏改造为 12 关曲线（三章 × 4 关 + 2 个 rest 关），数据驱动 + Kishōtenketsu × 过山车节奏。
+- 来源：NotebookLM 关卡设计理论（4C / Kishōtenketsu / 过山车曲线 / 显隐性变量 / "压力下学不会" / "估 8 实际 24"）+ 当前代码现状。
+
+### 已锁口径
+- Q1 = A：apple blossom `amount = 1`
+- Q2 = A：盘面按关伸缩，`layoutRows / rowTileIds / rowSlots / startTileId` 降级为关字段
+- Q3 = A：撞鸟惩罚保持现状（pendingScoreList 清空、蜜蜂 -1、阶段不回退）
+- 关卡数：12 关；rest 关插入 L5 / L9（不在 L12 后再加 L13）
+- LV-2：必做（BFS 排除）
+- intro toast 时机：关卡载入即弹（沿用 `showToast`）
+- NotebookLM：不再追问
+
+### 12 关曲线（v2：每关只引入一个新东西 / L1 零敌人）
+| 关 | 章 | Kishō | 节奏 | 唯一新东西 | 盘面 | 蜜蜂 | enemy/flower/apple/tulip/empty | 目标 F/A/T | enemy 密度 | enemyPlacementRule |
+|---|---|---|---|---|---|---|---|---|---|---|
+| L1 | 1 | Introduce | valley | 学拖动 | 13 | 8 | 0/9/0/0/4 | 5/0/0 | 0% | default |
+| L2 | 1 | Train | valley→rise | 首次见鸟 | 13 | 7 | 1/8/0/0/4 | 6/0/0 | 7.7% | exclude-shortest-safe-path |
+| L3 | 1 | Twist | rise | 苹果树三态 | 16 | 7 | 2/10/1/0/3 | 8/1/0 | 12.5% | exclude-shortest-safe-path |
+| L4 | 1 | Conclude | peak | 第 1 章综合 | 16 | 6 | 3/9/2/0/2 | 10/1/0 | 18.8% | default |
+| L5 | rest | Rest | rest | 回血关 | 13 | 8 | 0/10/0/0/3 | 6/0/0 | 0% | default |
+| L6 | 2 | Introduce | valley | 郁金香 +2 | 16 | 7 | 1/10/0/2/3 | 8/0/2 | 6.3% | exclude-shortest-safe-path |
+| L7 | 2 | Train | rise | 19 格大盘 + 郁金香田 | 19 | 6 | 2/10/0/4/3 | 10/0/3 | 10.5% | default |
+| L8 | 2 | Twist+Conclude | rise→peak | 三花同台 | 19 | 5 | 3/9/2/3/2 | 11/1/3 | 15.8% | default |
+| L9 | rest | Rest | rest | 郁金香 × 回血 | 16 | 8 | 0/7/0/6/3 | 5/0/4 | 0% | default |
+| L10 | 3 | Introduce | valley→rise | 22 格大盘 | 22 | 7 | 3/11/1/3/4 | 11/1/3 | 13.6% | exclude-shortest-safe-path |
+| L11 | 3 | Train+Twist | rise→peak | 苹果翻倍 + 鸟群加密 | 22 | 6 | 4/10/2/3/3 | 12/2/4 | 18.2% | default |
+| L12 | 3 | Conclude | valley→peak | 心流打破 · 远端聚集 | 22 | 5 | 5/10/2/3/2 | 14/2/5 | 22.7% | far-from-start-then-cluster |
+
+设计原则（v2 校准）：
+1. **每关有且只有一个 "新东西"**（4C Hooks 强约束）：拖动 → 鸟 → 苹果 → 综合 → 回血 → 郁金香 → 大盘 → 三花 → 回血 → 22 格 → 翻倍 → 终局。
+2. **L1 零敌人**：移除"学撞鸟"放到 L2，让 L1 唯一焦点是"按住—拖动—松手"的运动学习。
+3. **敌人阶梯渐入**：每章鸟数从 0 / 1 / 2 / 3 起步，章节切换时回零（L5、L9），避免线性堆叠造成疲劳。
+4. **教学关全部走 `exclude-shortest-safe-path`**：L2 / L3 / L6 / L10 起点周边 2 步内绝无敌人。
+5. **rest 关蜜蜂回满（8）+ 0 敌人**：彻底"送爽"，对应宪法第 3 条波谷。
+
+### 落地实现摘要（已完成）
+- LV-1 `app.js`：顶层常量降级为 `let`，新增 `levelConfigs[]`、`currentLevelIndex`、`applyLevelConfig(idx)`；4 套盘面拓扑 `LAYOUT_13/16/19/22`（13/16/22 经 BFS 验证起点至少 3 邻居、所有 tile 从 start 可达）
+- LV-2 新增 `bfsDistancesFromStart()` + `pickEnemyTileIds()`，支持 `default` / `exclude-shortest-safe-path`（SAFE_RADIUS=2）/ `far-from-start-then-cluster`
+- LV-3 新增 `showLevelIntroToast()`，沿用 `showToast` 链路，在 `restartGame` 末尾触发
+- LV-4 `dom.restartWinButton` 文案随关切换；末关 → "再来一遍"、非末关 → "下一关"；handler 区分 game-over（本关）vs win（下一关）
+- LV-5 通关/失败时 `logEvent("level-result", {...})`
+- LV-6 自检脚本：12 关全部 reachable === tiles.length、起点邻居 ≥ 3、起点非 enemy、L1/L2/L5/L9 enemy 不在 SAFE_RADIUS 内；L12 enemy 平均距离 ≥ 4.4
+
+### Debug 入口
+- `window.demoBoard.levelConfigs` 查看全部关卡
+- `window.demoBoard.currentLevel` 当前关
+- `window.demoBoard.gotoLevel(idx)` 强切关（0~11）
+
+### 已知边界
+- 关卡未做 localStorage 持久化，刷新即回 L1（本轮范围外）
+- L12 "前 3 步无敌人" 的剧本化心流打破：当前仅用"远端聚集"实现，不动态等"第 4 步触发"
+- 蜜蜂/橘子树等新地块未接入
+- 上线后需用 `logEvent("level-result")` 数据校准 `designerNotes.expectedRunsToWin`，对应 notebook 第 6 条"估 8 实际 24"
+
+### Handoff
+- 当前状态：已落地，等 `@B-FIX` 实机回归
+- 下一步：浏览器人工跑 L1 → L12，确认 intro toast、盘面伸缩、win 面板"下一关"按钮、撞鸟反馈、tile 拓扑显示正常

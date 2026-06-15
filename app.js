@@ -1,40 +1,233 @@
 const lockedDangerPreviewCount = 3;
-const tileTypeRatioBaseCounts = {
-  enemy: 3,
-  flower: 9,
-  apple_tree: 1,
-  tulip: 2,
-  empty: 4,
-};
 const tileTypeOrder = ["enemy", "flower", "apple_tree", "tulip", "empty"];
 
-const layoutRows = [2, 2, 3, 3, 3, 3, 2, 1];
-const rowTileIds = [
-  ["T01", "T02"],
-  ["T03", "T04"],
-  ["T05", "T06", "T07"],
-  ["T08", "T09", "T10"],
-  ["T11", "T12", "T13"],
-  ["T14", "T15", "T16"],
-  // 为了让固定起点 T18 落在底部偏中间，最后两格的视觉顺序单独调整。
-  ["T18", "T17"],
-  ["T19"],
+// ====== 关卡体系（A-PLN-LEVEL-DESIGN-FINAL）======
+// 三章 × 4 关 + 2 个 rest 关 = 共 12 关。每关都标注 4C Hooks 与 Kishōtenketsu 阶段。
+// 详见 A-PLN.md "A-PLN-LEVEL-DESIGN-FINAL" 章节。
+
+// 复用 13 / 16 / 19 / 22 四种盘面拓扑。
+// 邻接规则要求相邻行 slot parity 必须相反（hex-like 行交错），且起点行至少有 3 个邻居。
+const LAYOUT_13 = {
+  layoutRows: [2, 3, 3, 3, 2],
+  rowTileIds: [
+    ["T01", "T02"],
+    ["T03", "T04", "T05"],
+    ["T06", "T07", "T08"],
+    ["T09", "T10", "T11"],
+    ["T13", "T12"],
+  ],
+  rowSlots: [[2, 4], [1, 3, 5], [2, 4, 6], [1, 3, 5], [2, 4]],
+  startTileId: "T13",
+};
+const LAYOUT_16 = {
+  layoutRows: [2, 3, 3, 3, 3, 2],
+  rowTileIds: [
+    ["T01", "T02"],
+    ["T03", "T04", "T05"],
+    ["T06", "T07", "T08"],
+    ["T09", "T10", "T11"],
+    ["T12", "T13", "T14"],
+    ["T16", "T15"],
+  ],
+  rowSlots: [[2, 4], [1, 3, 5], [2, 4, 6], [1, 3, 5], [2, 4, 6], [3, 5]],
+  startTileId: "T16",
+};
+const LAYOUT_19 = {
+  layoutRows: [2, 2, 3, 3, 3, 3, 2, 1],
+  rowTileIds: [
+    ["T01", "T02"],
+    ["T03", "T04"],
+    ["T05", "T06", "T07"],
+    ["T08", "T09", "T10"],
+    ["T11", "T12", "T13"],
+    ["T14", "T15", "T16"],
+    ["T18", "T17"],
+    ["T19"],
+  ],
+  rowSlots: [[2, 4], [1, 3], [2, 4, 6], [1, 3, 5], [2, 4, 6], [1, 3, 5], [2, 4], [3]],
+  startTileId: "T18",
+};
+const LAYOUT_22 = {
+  layoutRows: [2, 3, 3, 3, 3, 3, 3, 2],
+  rowTileIds: [
+    ["T01", "T02"],
+    ["T03", "T04", "T05"],
+    ["T06", "T07", "T08"],
+    ["T09", "T10", "T11"],
+    ["T12", "T13", "T14"],
+    ["T15", "T16", "T17"],
+    ["T18", "T19", "T20"],
+    ["T22", "T21"],
+  ],
+  rowSlots: [
+    [2, 4],
+    [1, 3, 5],
+    [2, 4, 6],
+    [1, 3, 5],
+    [2, 4, 6],
+    [1, 3, 5],
+    [2, 4, 6],
+    [3, 5],
+  ],
+  startTileId: "T22",
+};
+
+const levelConfigs = [
+  // ===== 第 1 章：花、撞鸟、苹果 =====
+  {
+    // L1：纯花海，零敌人，零压力。唯一目标 = 学会"按住—拖动—松手"。
+    id: "L1", name: "第 1 关 · 拖动起步", chapter: 1, layout: LAYOUT_13,
+    tileTypeRatioBaseCounts: { enemy: 0, flower: 9, apple_tree: 0, tulip: 0, empty: 4 },
+    initialBeeCount: 8,
+    goalTargets: { flower: 5, apple: 0, tulip: 0 },
+    enemyPlacementRule: "default",
+    hooks: "学习：按住一朵花，拖向相邻的另一朵",
+    intro: "盘面只有花，没有敌人；按住起点，向相邻格滑动，松手结算。",
+    designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0.0, kishoStage: "Introduce", rhythm: "valley" },
+  },
+  {
+    // L2：首次出现 1 只鸟。安全路径外才会出现，绝不会开局就死。
+    id: "L2", name: "第 2 关 · 鸟来了", chapter: 1, layout: LAYOUT_13,
+    tileTypeRatioBaseCounts: { enemy: 1, flower: 8, apple_tree: 0, tulip: 0, empty: 4 },
+    initialBeeCount: 7,
+    goalTargets: { flower: 6, apple: 0, tulip: 0 },
+    enemyPlacementRule: "exclude-shortest-safe-path",
+    hooks: "认识：撞鸟会让本轮收益清零、扣 1 只蜜蜂",
+    intro: "盘上多了一只鸟。隔壁格的数字提醒你它在哪边——绕开它。",
+    designerNotes: { expectedRunsToWin: 4, expectedFailRate: 0.1, kishoStage: "Train", rhythm: "valley→rise" },
+  },
+  {
+    // L3：苹果树登场。盘面只 1 棵 apple，让玩家有时间看清 blossom/fruit/harvested 三态循环。
+    id: "L3", name: "第 3 关 · 苹果开花了", chapter: 1, layout: LAYOUT_16,
+    tileTypeRatioBaseCounts: { enemy: 2, flower: 10, apple_tree: 1, tulip: 0, empty: 3 },
+    initialBeeCount: 7,
+    goalTargets: { flower: 8, apple: 1, tulip: 0 },
+    enemyPlacementRule: "exclude-shortest-safe-path",
+    hooks: "认识：苹果树会换装（开花→结果→采空）",
+    intro: "粉色花是苹果树。只有开花期能收，采过会变成果实，再下一轮才回到花期。",
+    designerNotes: { expectedRunsToWin: 5, expectedFailRate: 0.2, kishoStage: "Twist", rhythm: "rise" },
+  },
+  {
+    // L4：第 1 章 Conclude。鸟密度上升，apple 增到 2 棵保证目标可达。
+    id: "L4", name: "第 4 关 · 第一章考核", chapter: 1, layout: LAYOUT_16,
+    tileTypeRatioBaseCounts: { enemy: 3, flower: 9, apple_tree: 2, tulip: 0, empty: 2 },
+    initialBeeCount: 6,
+    goalTargets: { flower: 10, apple: 1, tulip: 0 },
+    enemyPlacementRule: "default",
+    hooks: "综合：花 + 苹果 + 3 只鸟",
+    intro: "鸟更多了；记得用边界数字提前判断敌人位置。",
+    designerNotes: { expectedRunsToWin: 6, expectedFailRate: 0.35, kishoStage: "Conclude", rhythm: "peak" },
+  },
+
+  // ===== 中场息期 =====
+  {
+    // L5 rest：零敌人 + 蜜蜂回满，纯花海"回血"。
+    id: "L5", name: "第 5 关 · 休息日 · 花海", chapter: 0, layout: LAYOUT_13,
+    tileTypeRatioBaseCounts: { enemy: 0, flower: 10, apple_tree: 0, tulip: 0, empty: 3 },
+    initialBeeCount: 8,
+    goalTargets: { flower: 6, apple: 0, tulip: 0 },
+    enemyPlacementRule: "default",
+    hooks: "回血：没有敌人的安全关",
+    intro: "没有任何鸟，路径随便走，恢复手感。",
+    designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0, kishoStage: "Rest", rhythm: "rest" },
+  },
+
+  // ===== 第 2 章：郁金香 =====
+  {
+    // L6：郁金香登场。只 1 只鸟（章节"鸟"重置回起步级），让玩家专注学新机制。
+    id: "L6", name: "第 6 关 · 郁金香登场", chapter: 2, layout: LAYOUT_16,
+    tileTypeRatioBaseCounts: { enemy: 1, flower: 10, apple_tree: 0, tulip: 2, empty: 3 },
+    initialBeeCount: 7,
+    goalTargets: { flower: 8, apple: 0, tulip: 2 },
+    enemyPlacementRule: "exclude-shortest-safe-path",
+    hooks: "认识：紫色郁金香一朵 +2 花蜜",
+    intro: "紫色花是郁金香，价值是小白花的 2 倍。",
+    designerNotes: { expectedRunsToWin: 4, expectedFailRate: 0.1, kishoStage: "Introduce", rhythm: "valley" },
+  },
+  {
+    // L7：盘面扩到 19 格 + 鸟密度上升。仍无苹果，专注 flower+tulip。
+    id: "L7", name: "第 7 关 · 郁金香花田", chapter: 2, layout: LAYOUT_19,
+    tileTypeRatioBaseCounts: { enemy: 2, flower: 10, apple_tree: 0, tulip: 4, empty: 3 },
+    initialBeeCount: 6,
+    goalTargets: { flower: 10, apple: 0, tulip: 3 },
+    enemyPlacementRule: "default",
+    hooks: "训练：在更大的盘面上规划郁金香路线",
+    intro: "盘面变大了；尝试一笔画连续穿过多朵郁金香。",
+    designerNotes: { expectedRunsToWin: 5, expectedFailRate: 0.25, kishoStage: "Train", rhythm: "rise" },
+  },
+  {
+    // L8：三花同台 = 第 2 章 Conclude。
+    id: "L8", name: "第 8 关 · 三花同台", chapter: 2, layout: LAYOUT_19,
+    tileTypeRatioBaseCounts: { enemy: 3, flower: 9, apple_tree: 2, tulip: 3, empty: 2 },
+    initialBeeCount: 5,
+    goalTargets: { flower: 11, apple: 1, tulip: 3 },
+    enemyPlacementRule: "default",
+    hooks: "综合：花 + 苹果 + 郁金香 + 3 只鸟",
+    intro: "三类地块首次同台；优先做哪一类，自己决定。",
+    designerNotes: { expectedRunsToWin: 7, expectedFailRate: 0.35, kishoStage: "Twist+Conclude", rhythm: "rise→peak" },
+  },
+
+  // ===== 中场息期 2 =====
+  {
+    // L9 rest：郁金香主题的"回血"。零敌人 + 大量郁金香。
+    id: "L9", name: "第 9 关 · 休息日 · 郁金香田", chapter: 0, layout: LAYOUT_16,
+    tileTypeRatioBaseCounts: { enemy: 0, flower: 7, apple_tree: 0, tulip: 6, empty: 3 },
+    initialBeeCount: 8,
+    goalTargets: { flower: 5, apple: 0, tulip: 4 },
+    enemyPlacementRule: "default",
+    hooks: "回血：纯郁金香 × 花海，零敌人",
+    intro: "整片紫色，没有鸟。专注采郁金香、找最长一笔画。",
+    designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0, kishoStage: "Rest", rhythm: "rest" },
+  },
+
+  // ===== 第 3 章：大盘 + 综合考验 =====
+  {
+    // L10：22 格盘面首次出现，但敌人降回 3 只让玩家适应新尺寸。
+    id: "L10", name: "第 10 关 · 大盘首秀", chapter: 3, layout: LAYOUT_22,
+    tileTypeRatioBaseCounts: { enemy: 3, flower: 11, apple_tree: 1, tulip: 3, empty: 4 },
+    initialBeeCount: 7,
+    goalTargets: { flower: 11, apple: 1, tulip: 3 },
+    enemyPlacementRule: "exclude-shortest-safe-path",
+    hooks: "认识：22 格大盘面，路径可以更长",
+    intro: "盘面更大了；起点附近留出了安全区，先适应再深入。",
+    designerNotes: { expectedRunsToWin: 5, expectedFailRate: 0.2, kishoStage: "Introduce", rhythm: "valley→rise" },
+  },
+  {
+    // L11：apple 翻倍 + 鸟群加密 = 第 3 章 Twist。
+    id: "L11", name: "第 11 关 · 鸟群加密", chapter: 3, layout: LAYOUT_22,
+    tileTypeRatioBaseCounts: { enemy: 4, flower: 10, apple_tree: 2, tulip: 3, empty: 3 },
+    initialBeeCount: 6,
+    goalTargets: { flower: 12, apple: 2, tulip: 4 },
+    enemyPlacementRule: "default",
+    hooks: "训练：苹果翻倍 + 4 只鸟",
+    intro: "苹果树变成两棵，但鸟也跟着加密了。",
+    designerNotes: { expectedRunsToWin: 7, expectedFailRate: 0.35, kishoStage: "Train+Twist", rhythm: "rise→peak" },
+  },
+  {
+    // L12 终局：起点附近无敌人、远端鸟群密集，制造"先稳后炸"的心流打破。
+    id: "L12", name: "第 12 关 · 终局", chapter: 3, layout: LAYOUT_22,
+    tileTypeRatioBaseCounts: { enemy: 5, flower: 10, apple_tree: 2, tulip: 3, empty: 2 },
+    initialBeeCount: 5,
+    goalTargets: { flower: 14, apple: 2, tulip: 5 },
+    enemyPlacementRule: "far-from-start-then-cluster",
+    hooks: "终局：开局宽松，远端鸟群密集",
+    intro: "起点附近是安全的——但深处藏着 5 只鸟，决定要走多远。",
+    designerNotes: { expectedRunsToWin: 9, expectedFailRate: 0.5, kishoStage: "Conclude", rhythm: "valley→peak" },
+  },
 ];
-const rowSlots = [
-  [2, 4],
-  [1, 3],
-  [2, 4, 6],
-  [1, 3, 5],
-  [2, 4, 6],
-  [1, 3, 5],
-  [2, 4],
-  [3],
-];
-const startTileId = "T18";
-const initialBeeCount = 5;
-const goalTargets = { flower: 12, apple: 2, tulip: 4 };
-// 兼容旧字段：sum 仅用于日志与回退展示，胜负判定改为按 goalTargets 分项达成
-const honeyGoalTarget = goalTargets.flower + goalTargets.apple + goalTargets.tulip;
+
+let currentLevelIndex = 0;
+
+// 以下变量原为顶层 const，现降级为 let，由 applyLevelConfig 派生
+let tileTypeRatioBaseCounts = { enemy: 0, flower: 0, apple_tree: 0, tulip: 0, empty: 0 };
+let layoutRows = [];
+let rowTileIds = [];
+let rowSlots = [];
+let startTileId = "";
+let initialBeeCount = 0;
+let goalTargets = { flower: 0, apple: 0, tulip: 0 };
+let honeyGoalTarget = 0;
+let enemyPlacementRule = "default";
 const initialStatusText = "选择任意已翻开的格子（天敌除外）作为起点，按住滑动。";
 const animationDurations = {
   failFlash: 420,
@@ -236,7 +429,7 @@ function validateLayoutConfig() {
   const uniqueTileCount = new Set(allTileIds).size;
 
   if (!rowCountMatches || !everyRowMatches || totalTiles !== uniqueTileCount) {
-    throw new Error("固定盘面配置非法，请检查 layoutRows / rowTileIds / rowSlots");
+    throw new Error(`L${currentLevelIndex + 1} 盘面配置非法，请检查 layoutRows / rowTileIds / rowSlots`);
   }
 
   if (!allTileIds.includes(startTileId)) {
@@ -244,35 +437,103 @@ function validateLayoutConfig() {
   }
 }
 
-const tiles = rowTileIds.flatMap((ids, rowIndex) =>
-  ids.map((id, colIndex) => ({
-    id,
-    row: rowIndex,
-    col: colIndex,
-    slotX: rowSlots[rowIndex][colIndex],
-  }))
-);
+// 以下原为 const，现降级为 let，由 applyLevelConfig 重建
+let tiles = [];
+let totalTileCount = 0;
+let tileTypeCounts = createTileTypeSummary();
+let tilesById = {};
+let adjacencyMap = {};
 
-const totalTileCount = tiles.length;
-const tileTypeCounts = calculateTileTypeCounts(totalTileCount);
+function applyLevelConfig(levelIndex) {
+  if (!Number.isInteger(levelIndex) || levelIndex < 0 || levelIndex >= levelConfigs.length) {
+    throw new Error(`非法关卡索引：${levelIndex}`);
+  }
+  const cfg = levelConfigs[levelIndex];
+  currentLevelIndex = levelIndex;
 
-const tilesById = Object.fromEntries(tiles.map((tile) => [tile.id, tile]));
+  layoutRows = cfg.layout.layoutRows.slice();
+  rowTileIds = cfg.layout.rowTileIds.map((row) => row.slice());
+  rowSlots = cfg.layout.rowSlots.map((row) => row.slice());
+  startTileId = cfg.layout.startTileId;
 
-const adjacencyMap = Object.fromEntries(
-  tiles.map((tile) => {
-    const neighbors = tiles
-      .filter((candidate) => candidate.id !== tile.id)
-      .filter((candidate) => {
-        const dx = Math.abs(candidate.slotX - tile.slotX);
-        const dy = Math.abs(candidate.row - tile.row);
-        return (dy === 0 && dx === 2) || (dy === 1 && dx === 1);
-      })
-      .map((candidate) => candidate.id)
-      .sort();
+  tileTypeRatioBaseCounts = { ...cfg.tileTypeRatioBaseCounts };
+  initialBeeCount = cfg.initialBeeCount;
+  goalTargets = { ...cfg.goalTargets };
+  honeyGoalTarget = goalTargets.flower + goalTargets.apple + goalTargets.tulip;
+  enemyPlacementRule = cfg.enemyPlacementRule || "default";
 
-    return [tile.id, neighbors];
-  })
-);
+  validateLayoutConfig();
+
+  tiles = rowTileIds.flatMap((ids, rowIndex) =>
+    ids.map((id, colIndex) => ({
+      id,
+      row: rowIndex,
+      col: colIndex,
+      slotX: rowSlots[rowIndex][colIndex],
+    }))
+  );
+  totalTileCount = tiles.length;
+  tileTypeCounts = calculateTileTypeCounts(totalTileCount);
+  tilesById = Object.fromEntries(tiles.map((tile) => [tile.id, tile]));
+  adjacencyMap = Object.fromEntries(
+    tiles.map((tile) => {
+      const neighbors = tiles
+        .filter((candidate) => candidate.id !== tile.id)
+        .filter((candidate) => {
+          const dx = Math.abs(candidate.slotX - tile.slotX);
+          const dy = Math.abs(candidate.row - tile.row);
+          return (dy === 0 && dx === 2) || (dy === 1 && dx === 1);
+        })
+        .map((candidate) => candidate.id)
+        .sort();
+      return [tile.id, neighbors];
+    })
+  );
+}
+
+function bfsDistancesFromStart() {
+  const dist = { [startTileId]: 0 };
+  const queue = [startTileId];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const n of adjacencyMap[cur] || []) {
+      if (dist[n] === undefined) {
+        dist[n] = dist[cur] + 1;
+        queue.push(n);
+      }
+    }
+  }
+  return dist;
+}
+
+function pickEnemyTileIds(baseCandidates, randomFn) {
+  const need = tileTypeCounts.enemy;
+  if (need <= 0) return new Set();
+
+  if (enemyPlacementRule === "exclude-shortest-safe-path") {
+    const dist = bfsDistancesFromStart();
+    const SAFE_RADIUS = 2;
+    const restricted = baseCandidates.filter((id) => (dist[id] ?? Infinity) > SAFE_RADIUS);
+    if (restricted.length >= need) {
+      return new Set(shuffleArray(restricted, randomFn).slice(0, need));
+    }
+    console.warn(
+      `[Collection] L${currentLevelIndex + 1} exclude-shortest-safe-path 候选不足(${restricted.length} < ${need})，回退 default`
+    );
+  } else if (enemyPlacementRule === "far-from-start-then-cluster") {
+    const dist = bfsDistancesFromStart();
+    const far = shuffleArray(
+      baseCandidates.filter((id) => (dist[id] ?? 0) >= 3),
+      randomFn
+    );
+    const near = shuffleArray(
+      baseCandidates.filter((id) => (dist[id] ?? 0) < 3),
+      randomFn
+    );
+    return new Set([...far, ...near].slice(0, need));
+  }
+  return new Set(shuffleArray(baseCandidates, randomFn).slice(0, need));
+}
 
 function shuffleArray(items, randomFn = Math.random) {
   const next = [...items];
@@ -288,7 +549,7 @@ function shuffleArray(items, randomFn = Math.random) {
 function assignRandomTileTypes(randomFn = Math.random) {
   const allTileIds = tiles.map((tile) => tile.id);
   const enemyCandidates = allTileIds.filter((id) => id !== startTileId);
-  const enemyIds = new Set(shuffleArray(enemyCandidates, randomFn).slice(0, tileTypeCounts.enemy));
+  const enemyIds = pickEnemyTileIds(enemyCandidates, randomFn);
   const safeCandidates = allTileIds.filter((id) => !enemyIds.has(id));
   const appleTreeIds = new Set(
     shuffleArray(safeCandidates, randomFn).slice(0, tileTypeCounts.apple_tree)
@@ -491,6 +752,8 @@ function createInitialGameState(options = {}) {
   };
 }
 
+// 模块初始化：先应用关卡 0 数据，再创建初始 gameState
+applyLevelConfig(0);
 let gameState = createInitialGameState();
 let feedbackTimers = [];
 
@@ -508,6 +771,9 @@ const dom = hasDom
       goalFlower: document.getElementById("goal-flower"),
       goalApple: document.getElementById("goal-apple"),
       goalTulip: document.getElementById("goal-tulip"),
+      goalFlowerItem: document.querySelector('.goal-item[data-goal="flower"]'),
+      goalAppleItem: document.querySelector('.goal-item[data-goal="apple"]'),
+      goalTulipItem: document.querySelector('.goal-item[data-goal="tulip"]'),
       beesLeft: document.getElementById("bees-left"),
       beeCounterIcon: document.getElementById("bee-counter-icon"),
       statusText: document.getElementById("status-text"),
@@ -518,6 +784,10 @@ const dom = hasDom
       gameWin: document.getElementById("game-win"),
       gameWinSummary: document.getElementById("game-win-summary"),
       restartWinButton: document.getElementById("restart-win-button"),
+      levelSelectToggle: document.getElementById("level-select-toggle"),
+      levelSelectOverlay: document.getElementById("level-select-overlay"),
+      levelSelectClose: document.getElementById("level-select-close"),
+      levelSelectGrid: document.getElementById("level-select-grid"),
     }
   : null;
 
@@ -975,10 +1245,7 @@ function updateGameOverState() {
   gameState.isGameOver = shouldGameOver;
 
   if (shouldGameOver) {
-    gameState.statusText =
-      `游戏结束 · 小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
-      ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}` +
-      ` · 郁金香 ${gameState.tulipHoney}/${goalTargets.tulip}`;
+    gameState.statusText = `游戏结束 · ${formatGoalsLine()}`;
     showToast("游戏结束", "game-over");
     logEvent("游戏结束", getStateSnapshot());
   }
@@ -2020,13 +2287,53 @@ function renderGoalHUD() {
   if (dom.goalFlower) dom.goalFlower.textContent = String(fRemain);
   if (dom.goalApple) dom.goalApple.textContent = String(aRemain);
   if (dom.goalTulip) dom.goalTulip.textContent = String(tRemain);
-  dom.goalCard.setAttribute(
-    "aria-label",
-    `目标剩余：小白花 ${fRemain}、苹果花 ${aRemain}、郁金香 ${tRemain}`
-  );
+  dom.goalCard.setAttribute("aria-label", buildGoalCardAriaLabel());
   dom.goalFlower?.parentElement?.classList.toggle("is-done", fRemain === 0);
   dom.goalApple?.parentElement?.classList.toggle("is-done", aRemain === 0);
   dom.goalTulip?.parentElement?.classList.toggle("is-done", tRemain === 0);
+}
+
+// ====== A-PLN-GOAL-DYNAMIC-01：按关目标按需显示 ======
+const GOAL_LABEL_MAP = { flower: "小白花", apple: "苹果花", tulip: "郁金香" };
+const GOAL_STATE_KEY = { flower: "flowerHoney", apple: "appleHoney", tulip: "tulipHoney" };
+
+function getActiveGoalKeys() {
+  const keys = [];
+  if (goalTargets.flower > 0) keys.push("flower");
+  if (goalTargets.apple > 0) keys.push("apple");
+  if (goalTargets.tulip > 0) keys.push("tulip");
+  return keys;
+}
+
+function formatGoalsLine(separator = " · ") {
+  return getActiveGoalKeys()
+    .map((k) => `${GOAL_LABEL_MAP[k]} ${gameState[GOAL_STATE_KEY[k]]}/${goalTargets[k]}`)
+    .join(separator);
+}
+
+function formatGoalsAchieved(separator = "，") {
+  return getActiveGoalKeys()
+    .map((k) => `${GOAL_LABEL_MAP[k]} ${gameState[GOAL_STATE_KEY[k]]}/${goalTargets[k]}`)
+    .join(separator);
+}
+
+function formatGoalsBareCounts(separator = " · ") {
+  return getActiveGoalKeys()
+    .map((k) => `${GOAL_LABEL_MAP[k]} ${gameState[GOAL_STATE_KEY[k]]}`)
+    .join(separator);
+}
+
+function buildGoalCardAriaLabel() {
+  const parts = getActiveGoalKeys().map((k) => `${GOAL_LABEL_MAP[k]} ${goalTargets[k]}`);
+  return `目标剩余：${parts.join("、")}`;
+}
+
+function applyGoalVisibility() {
+  if (!dom) return;
+  if (dom.goalFlowerItem) dom.goalFlowerItem.hidden = goalTargets.flower === 0;
+  if (dom.goalAppleItem) dom.goalAppleItem.hidden = goalTargets.apple === 0;
+  if (dom.goalTulipItem) dom.goalTulipItem.hidden = goalTargets.tulip === 0;
+  if (dom.goalCard) dom.goalCard.setAttribute("aria-label", buildGoalCardAriaLabel());
 }
 
 function renderHud() {
@@ -2034,6 +2341,7 @@ function renderHud() {
     return;
   }
 
+  applyGoalVisibility();
   renderGoalHUD();
   const prevDisplayedBees = Number(dom.beesLeft.dataset.value);
   const nextBees = gameState.remainingBees;
@@ -2074,18 +2382,17 @@ function renderHud() {
   if (dom.gameOver && dom.gameOverSummary) {
     // 通关时优先显示 win 面板，game-over 面板隐藏
     dom.gameOver.hidden = gameState.isGameWin || !gameState.isGameOver;
-    dom.gameOverSummary.textContent =
-      `小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
-      ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}` +
-      ` · 郁金香 ${gameState.tulipHoney}/${goalTargets.tulip}`;
+    dom.gameOverSummary.textContent = formatGoalsLine();
   }
 
   if (dom.gameWin && dom.gameWinSummary) {
     dom.gameWin.hidden = !gameState.isGameWin;
+    const isFinalLevel = currentLevelIndex >= levelConfigs.length - 1;
     dom.gameWinSummary.textContent =
-      `已达成目标：小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
-      `，苹果花 ${gameState.appleHoney}/${goalTargets.apple}` +
-      `，郁金香 ${gameState.tulipHoney}/${goalTargets.tulip}`;
+      `${levelConfigs[currentLevelIndex].name} 已达成：${formatGoalsAchieved()}`;
+    if (dom.restartWinButton) {
+      dom.restartWinButton.textContent = isFinalLevel ? "再来一遍" : "下一关";
+    }
   }
 }
 
@@ -2332,21 +2639,100 @@ function restartGame(options = {}) {
   clearFeedbackTimers();
   endCombo({ immediate: true });
   resetCollectionFeedback({ resetRunToken: true, clearFlights: true, resetDisplay: true });
+
+  // 支持显式切关：options.levelIndex 优先；否则沿用当前关
+  if (Number.isInteger(options.levelIndex)) {
+    applyLevelConfig(options.levelIndex);
+    // 关卡几何变化时，重算 board 尺寸
+    computeBoardSize();
+  }
+
   const nextOptions = {
     ...options,
     previousState: gameState,
   };
   gameState = createInitialGameState(nextOptions);
+  const levelCfg = levelConfigs[currentLevelIndex];
   logEvent("初始化地图完成", {
     seed: gameState.currentSeed,
     source: gameState.roundConfigSource,
     summary: summarizeTileTypes(gameState.tileStateMap),
     roundConfig: getRoundConfigSnapshot(),
+    levelId: levelCfg.id,
+    levelIndex: currentLevelIndex,
   });
   renderAll();
   syncDebugHandle();
   syncBeeStaminaFromState();
+  showLevelIntroToast();
   return gameState;
+}
+
+function showLevelIntroToast() {
+  const cfg = levelConfigs[currentLevelIndex];
+  if (!cfg) return;
+  // 节奏 rest 关使用 info-rest 色调（沿用 info），普通关使用 info
+  const tone = cfg.designerNotes?.kishoStage === "Rest" ? "info" : "info";
+  showToast(`${cfg.name} · ${cfg.intro}`, tone);
+}
+
+function renderLevelSelectGrid() {
+  if (!dom?.levelSelectGrid) return;
+  const grid = dom.levelSelectGrid;
+  grid.innerHTML = "";
+  levelConfigs.forEach((cfg, idx) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "level-select-card";
+    if (cfg.designerNotes?.kishoStage === "Rest") {
+      card.classList.add("level-select-card--rest");
+    }
+    if (idx === currentLevelIndex) {
+      card.classList.add("level-select-card--current");
+    }
+    card.dataset.levelIndex = String(idx);
+    card.innerHTML =
+      `<span class="level-select-card__id">${cfg.name}</span>` +
+      `<span class="level-select-card__hook">${cfg.hooks}</span>`;
+    grid.appendChild(card);
+  });
+}
+
+function openLevelSelect() {
+  if (!dom?.levelSelectOverlay) return;
+  renderLevelSelectGrid();
+  dom.levelSelectOverlay.hidden = false;
+}
+
+function closeLevelSelect() {
+  if (!dom?.levelSelectOverlay) return;
+  dom.levelSelectOverlay.hidden = true;
+}
+
+function attachLevelSelectListeners(restartHandler) {
+  if (!dom?.levelSelectToggle) return;
+  dom.levelSelectToggle.addEventListener("click", () => openLevelSelect());
+  dom.levelSelectClose?.addEventListener("click", () => closeLevelSelect());
+  dom.levelSelectOverlay?.addEventListener("click", (event) => {
+    // 点击遮罩外层关闭；点击 panel 内部不关
+    if (event.target === dom.levelSelectOverlay) {
+      closeLevelSelect();
+    }
+  });
+  dom.levelSelectGrid?.addEventListener("click", (event) => {
+    const card = event.target.closest(".level-select-card");
+    if (!card) return;
+    const idx = Number(card.dataset.levelIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= levelConfigs.length) return;
+    closeLevelSelect();
+    restartHandler({ levelIndex: idx });
+  });
+  // ESC 关闭
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && dom.levelSelectOverlay && !dom.levelSelectOverlay.hidden) {
+      closeLevelSelect();
+    }
+  });
 }
 
 function beginRun(tileId, pointerId = null) {
@@ -2360,10 +2746,7 @@ function beginRun(tileId, pointerId = null) {
 
   if (gameState.isGameOver || gameState.remainingBees <= 0) {
     gameState.isGameOver = true;
-    gameState.statusText =
-      `游戏结束 · 小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
-      ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}` +
-      ` · 郁金香 ${gameState.tulipHoney}/${goalTargets.tulip}`;
+    gameState.statusText = `游戏结束 · ${formatGoalsLine()}`;
     showToast("游戏结束", "game-over");
     renderHud();
     return { ok: false, reason: "no-bees" };
@@ -2611,11 +2994,33 @@ function finalizeSuccessRun(context) {
   ) {
     gameState.isGameWin = true;
     gameState.isGameOver = true;
-    gameState.statusText = `恭喜通关！小白花 ${gameState.flowerHoney} · 苹果花 ${gameState.appleHoney} · 郁金香 ${gameState.tulipHoney}`;
-    showToast("恭喜通关！", "success");
+    const isFinalLevel = currentLevelIndex >= levelConfigs.length - 1;
+    const winTitle = isFinalLevel ? "全部通关！" : `第 ${currentLevelIndex + 1} 关通关！`;
+    gameState.statusText = `${winTitle} ${formatGoalsBareCounts()}`;
+    showToast(winTitle, "success");
+    logEvent("level-result", {
+      levelId: levelConfigs[currentLevelIndex].id,
+      levelIndex: currentLevelIndex,
+      win: true,
+      isFinalLevel,
+      beesLeft: gameState.remainingBees,
+      flowerHoney: gameState.flowerHoney,
+      appleHoney: gameState.appleHoney,
+      tulipHoney: gameState.tulipHoney,
+    });
     logEvent("通关", getStateSnapshot());
   } else if (gameState.remainingBees <= 0) {
     updateGameOverState();
+    logEvent("level-result", {
+      levelId: levelConfigs[currentLevelIndex].id,
+      levelIndex: currentLevelIndex,
+      win: false,
+      isFinalLevel: currentLevelIndex >= levelConfigs.length - 1,
+      beesLeft: gameState.remainingBees,
+      flowerHoney: gameState.flowerHoney,
+      appleHoney: gameState.appleHoney,
+      tulipHoney: gameState.tulipHoney,
+    });
   }
 
   gameState.pendingScoreList = [];
@@ -2962,10 +3367,7 @@ function handlePointerDown(event) {
 
   if (gameState.isGameOver || gameState.remainingBees <= 0) {
     gameState.isGameOver = true;
-    gameState.statusText =
-      `游戏结束 · 小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
-      ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}` +
-      ` · 郁金香 ${gameState.tulipHoney}/${goalTargets.tulip}`;
+    gameState.statusText = `游戏结束 · ${formatGoalsLine()}`;
     triggerInvalidStartFeedback(tileId, { message: "游戏结束", tone: "game-over" });
     return;
   }
@@ -3230,16 +3632,26 @@ function attachEventListeners() {
   dom.board.addEventListener("pointerup", handlePointerUp);
   dom.board.addEventListener("pointercancel", handlePointerCancel);
   attachCustomCursorListeners();
-  const restartHandler = () => {
+  const restartHandler = (options = {}) => {
     const previousSeed = gameState.currentSeed;
-    restartGame();
+    restartGame(options);
     logEvent("重新开始", {
       previousSeed,
       nextSeed: gameState.currentSeed,
+      levelIndex: currentLevelIndex,
     });
   };
-  dom.restartButton?.addEventListener("click", restartHandler);
-  dom.restartWinButton?.addEventListener("click", restartHandler);
+  // game-over 面板：本关重来（不切关）
+  dom.restartButton?.addEventListener("click", () => restartHandler());
+  // win 面板：非末关→下一关；末关→回到 L1
+  dom.restartWinButton?.addEventListener("click", () => {
+    const isFinalLevel = currentLevelIndex >= levelConfigs.length - 1;
+    const nextLevelIndex = isFinalLevel ? 0 : currentLevelIndex + 1;
+    restartHandler({ levelIndex: nextLevelIndex });
+  });
+
+  // 选关界面
+  attachLevelSelectListeners(restartHandler);
   window.addEventListener("resize", applyResponsiveGameScale);
 }
 
@@ -3267,6 +3679,16 @@ function syncDebugHandle() {
     tiles,
     tilesById,
     adjacencyMap,
+    levelConfigs,
+    get currentLevelIndex() {
+      return currentLevelIndex;
+    },
+    get currentLevel() {
+      return levelConfigs[currentLevelIndex];
+    },
+    gotoLevel(idx) {
+      return restartGame({ levelIndex: idx });
+    },
     get gameState() {
       return gameState;
     },
@@ -3453,6 +3875,7 @@ function initBgm() {
 }
 
 function init() {
+  // 顶层模块已经 applyLevelConfig(0) 过；这里仅再校验，确保 DOM ready 后盘面尺寸正确
   validateLayoutConfig();
   computeBoardSize();
   attachEventListeners();

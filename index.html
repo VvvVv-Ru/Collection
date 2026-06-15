@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Honey Demo Skeleton</title>
-    <link rel="stylesheet" href="./style.css?v=goal-arrival-20260615-12" />
+    <link rel="stylesheet" href="./style.css?v=goal-dynamic-20260616-2" />
   </head>
   <body>
     <main class="app-shell">
@@ -80,6 +80,26 @@
       <span class="bgm-toggle__icon" data-state="off" aria-hidden="true">🔇</span>
     </button>
 
+    <button
+      id="level-select-toggle"
+      class="level-select-toggle"
+      type="button"
+      aria-label="选关"
+    >
+      选关
+    </button>
+
+    <div id="level-select-overlay" class="level-select-overlay" hidden>
+      <div class="level-select-panel" role="dialog" aria-labelledby="level-select-title">
+        <header class="level-select-panel__header">
+          <strong id="level-select-title" class="level-select-panel__title">选择关卡</strong>
+          <button id="level-select-close" class="level-select-panel__close" type="button" aria-label="关闭">×</button>
+        </header>
+        <div id="level-select-grid" class="level-select-grid"></div>
+        <p class="level-select-panel__hint">点击任意关卡可直接切换；当前关卡以高亮显示。</p>
+      </div>
+    </div>
+
     <div id="custom-cursor" class="custom-cursor" aria-hidden="true">
       <svg class="custom-cursor__ring" viewBox="0 0 100 100" aria-hidden="true">
         <circle class="custom-cursor__ring-track" cx="50" cy="50" r="46"></circle>
@@ -90,6 +110,6 @@
       </div>
     </div>
 
-    <script src="./app.js?v=apple-amount-20260615-1"></script>
+    <script src="./app.js?v=goal-dynamic-20260616-1"></script>
   </body>
 </html>
