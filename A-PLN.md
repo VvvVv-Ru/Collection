@@ -522,3 +522,27 @@
 3. 三桶都达成：通关、win 面板含 `郁金香 X/4`
 4. 蜜蜂耗尽未通关：game-over 文案三桶齐显
 5. `node --check app.js` 通过
+
+---
+
+## 任务卡：郁金香两阶段（A-PLN-TULIP-STAGES-01）
+
+- 任务 ID：`A-PLN-TULIP-STAGES-01`
+- 目标：郁金香新增 bloom / sprout 两阶段流转，参照小白花机制
+
+### 已确认口径
+- 资源：`tulip_bloom_01.png` / `tulip_sprout_01.png`，旧 `tulip_01.png` 保留不再引用
+- 默认初始阶段：bloom
+- bloom 采集：+2 花蜜、Combo + 小跳 + 2 朵飞花、计入 `tulipHoney`，副作用 `advance-tulip-to-sprout`
+- sprout 采集：0 花蜜、不 Combo、silentBounce 小跳 + 顶点切图、副作用 `advance-tulip-to-bloom`
+- 撞天敌：pendingScoreList 作废，阶段不变
+- 通关条件不变：`flowerHoney≥12 && appleHoney≥2 && tulipHoney≥4`
+- 通关 `tulipHoney` 累计仅来自 bloom 阶段采集
+- CSS：首版 sprout 复用 bloom 位置，实机若不对再加 `.tile__image--tulip-sprout` 微调
+
+### 验收
+1. 开局所有 tulip 显示 `tulip_bloom_01.png`
+2. 采集 bloom：跳 + 顶点切 sprout 图 + 2 朵飞花，`tulipHoney += 2`
+3. 下一轮采该格 sprout：silentBounce 跳 + 顶点切回 bloom，无花蜜、无 Combo、无飞花
+4. 撞天敌：阶段不变
+5. `node --check app.js` 通过

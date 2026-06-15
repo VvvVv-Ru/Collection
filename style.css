@@ -202,6 +202,56 @@ body::before {
   transition: transform 0.25s ease, filter 0.25s ease;
 }
 
+.hud-card--goals {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 32px;
+  width: auto;
+  min-width: 0;
+  background: #fffaf0;
+  border-color: rgba(191, 126, 36, 0.18);
+  border-radius: 56px;
+}
+
+.goal-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 88px;
+}
+
+.goal-item__icon {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+  display: block;
+}
+
+.goal-item__num {
+  position: absolute;
+  right: 4px;
+  bottom: 0;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text-main, #5f3c1f);
+  line-height: 1;
+  letter-spacing: 0.2px;
+  text-shadow:
+    0 1px 0 #fffaf0,
+    1px 0 0 #fffaf0,
+    -1px 0 0 #fffaf0,
+    0 -1px 0 #fffaf0;
+  transition: transform 0.25s ease, color 0.25s ease;
+}
+
+.goal-item.is-done .goal-item__num {
+  color: #2f8a3e;
+}
+
 .hud-card--primary.hud-card--pulse strong {
   animation: honey-pulse 0.48s ease;
 }
@@ -576,6 +626,10 @@ body::before {
   transform: translateX(-50%);
   object-fit: contain;
   transform-origin: top center;
+}
+
+.tile__image--tulip-sprout {
+  inset: calc(10% + 44px) auto auto 50%;
 }
 
 .tile__image--enemy {
@@ -1425,6 +1479,29 @@ body.is-dragging-cursor * {
 
   .hud-card--primary {
     width: min(100%, 180px);
+  }
+
+  .hud-card--goals {
+    width: auto;
+    min-width: 0;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 44px;
+  }
+
+  .goal-item {
+    width: 88px;
+    height: 72px;
+  }
+
+  .goal-item__icon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .goal-item__num {
+    font-size: 24px;
+    right: 2px;
   }
 
   .hud-card--secondary {

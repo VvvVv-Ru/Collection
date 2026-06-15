@@ -514,3 +514,51 @@
 
 ### 自检
 - `node --check app.js` 通过
+
+## 模块：目标 HUD 改为 icon + 数字
+- 任务 ID：`B-COD-HUD-GOAL-ICON-01`
+- 目标：HUD"目标"卡片由一行文字改为参考图风格的 3 槽 icon + 当前值
+
+### 已实施改动
+- `index.html`
+  - 替换原 `hud-card--primary` 内容：删 `hud-label`/`#total-honey`，改为 `#goal-card` 内 3 个 `.goal-item`（flower / apple / tulip），每个含 `.goal-item__icon` + `.goal-item__num`
+  - icon 资源：`assets/ui/icon_flower_01.png`、`icon_apple_01.png`（苹果花）、`icon_tulip_01.png`
+  - 卡片 `aria-label` 包含完整"已得/目标"文案
+  - 样式版本号 bump：`style.css?v=goal-icon-20260615-1`
+- `style.css`
+  - 新增 `.hud-card--goals`（横排、gap 14、padding 10/18、width auto）
+  - 新增 `.goal-item` / `.goal-item__icon`（28x28）/ `.goal-item__num`（18px 700）
+  - `.goal-item.is-done .goal-item__num { color: #2f8a3e }` 达成态高亮
+  - 窄屏断点：icon 22x22、字号 14px、gap 10、padding 7/12
+- `app.js`
+  - `dom` 新增 `goalCard / goalFlower / goalApple / goalTulip`
+  - 新增 `renderGoalHUD()`：同步三槽数字、刷新 `aria-label`、按 `goalTargets` 比对切换 `is-done`
+  - `renderHud()` 删除 `dom.totalHoney.textContent` 拼接，改为 `renderGoalHUD()`
+  - HUD pulse 改为作用在 `dom.goalCard`
+
+### 范围说明
+- `Collection/` 子目录是历史拷贝，本次未同步修改
+
+### 自检
+- `node --check app.js` 通过
+
+---
+
+## 任务卡：郁金香两阶段（B-COD-TULIP-STAGES-01）
+
+- 任务 ID：`B-COD-TULIP-STAGES-01`
+
+### 已实施改动
+- `app.js`
+  - 删除常量 `tulipOverlayAsset`，改为 `tulipStageAssetMap = { bloom, sprout }`
+  - `getInitialGrowthStage("tulip")` 返回 `"bloom"`
+  - 新增 `getTulipStage(tileState)`，做 fallback 到 bloom
+  - `getSafeTileOverlayMarkup`：tulip 分支按 stage 取图，并附加 `tile__image--tulip-bloom / -sprout` 钩子类
+  - `extendRun`：tulip 分支按 stage 分流
+    - bloom：`amount=2`、`sideEffect=advance-tulip-to-sprout`、`incrementCombo`
+    - sprout：`amount=0`、`sideEffect=advance-tulip-to-bloom`、`silentBounce=true`、不 Combo
+  - `commitOneSideEffect`：新增 `advance-tulip-to-sprout` / `advance-tulip-to-bloom` 两条分支
+  - finalizeSuccessRun 的 `gainedTulip` 自然仅累加 `entry.type === "tulip"`（bloom 走这条），sprout 入 `tulip_sprout`，不计入 `tulipHoney`
+
+### 自检
+- `node --check app.js` 通过

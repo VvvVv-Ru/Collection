@@ -4,16 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Honey Demo Skeleton</title>
-    <link rel="stylesheet" href="./style.css?v=apple-amount-20260615-1" />
+    <link rel="stylesheet" href="./style.css?v=goal-icon-20260615-3" />
   </head>
   <body>
     <main class="app-shell">
       <div id="game-stage-viewport" class="game-stage-viewport">
         <div id="game-stage" class="game-stage">
           <header class="hud">
-            <section class="hud-card hud-card--primary">
-              <span class="hud-label">目标</span>
-              <strong id="total-honey">小白花 0/12 · 苹果花 0/2</strong>
+            <section
+              class="hud-card hud-card--primary hud-card--goals"
+              id="goal-card"
+              aria-label="目标剩余：小白花 12、苹果花 2、郁金香 4"
+            >
+              <div class="goal-item" data-goal="flower">
+                <img class="goal-item__icon" src="assets/ui/icon_flower_01.png" alt="小白花" />
+                <strong class="goal-item__num" id="goal-flower">12</strong>
+              </div>
+              <div class="goal-item" data-goal="apple">
+                <img class="goal-item__icon" src="assets/ui/icon_apple_01.png" alt="苹果花" />
+                <strong class="goal-item__num" id="goal-apple">2</strong>
+              </div>
+              <div class="goal-item" data-goal="tulip">
+                <img class="goal-item__icon" src="assets/ui/icon_tulip_01.png" alt="郁金香" />
+                <strong class="goal-item__num" id="goal-tulip">4</strong>
+              </div>
             </section>
             <section id="round-honey-card" class="hud-card hud-card--secondary">
               <span class="hud-label">本轮暂存</span>

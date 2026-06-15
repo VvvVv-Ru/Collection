@@ -73,7 +73,10 @@ const flowerStageAssetMap = {
   bloom: "./assets/tiles/flower_bloom_01.png",
   sprout: "./assets/tiles/flower_sprout_01.png",
 };
-const tulipOverlayAsset = "./assets/tiles/tulip_01.png";
+const tulipStageAssetMap = {
+  bloom: "./assets/tiles/tulip_bloom_01.png",
+  sprout: "./assets/tiles/tulip_sprout_01.png",
+};
 const appleTreeStateAssetMap = {
   blossom: "./assets/tiles/apple_tree_blossom_01.png",
   fruit: "./assets/tiles/apple_tree_fruit_01.png",
@@ -378,12 +381,18 @@ function summarizeTileTypes(tileStateMap) {
 function getInitialGrowthStage(type) {
   if (type === "apple_tree") return "blossom";
   if (type === "flower") return "bloom";
+  if (type === "tulip") return "bloom";
   return null;
 }
 
 function getFlowerStage(tileState) {
   if (!tileState || tileState.type !== "flower") return null;
   return flowerStageAssetMap[tileState.growthStage] ? tileState.growthStage : "bloom";
+}
+
+function getTulipStage(tileState) {
+  if (!tileState || tileState.type !== "tulip") return null;
+  return tulipStageAssetMap[tileState.growthStage] ? tileState.growthStage : "bloom";
 }
 
 function buildTypeMap(options = {}) {
@@ -498,6 +507,10 @@ const dom = hasDom
       comboPopup: document.getElementById("combo-popup"),
       comboPopupCount: document.getElementById("combo-popup-count"),
       totalHoney: document.getElementById("total-honey"),
+      goalCard: document.getElementById("goal-card"),
+      goalFlower: document.getElementById("goal-flower"),
+      goalApple: document.getElementById("goal-apple"),
+      goalTulip: document.getElementById("goal-tulip"),
       roundHoney: document.getElementById("round-honey"),
       roundHoneyCard: document.getElementById("round-honey-card"),
       beesLeft: document.getElementById("bees-left"),
@@ -1852,7 +1865,8 @@ function getSafeTileOverlayMarkup(tileState) {
   }
 
   if (tileState.type === "tulip") {
-    return `<img class="tile__image tile__image--layer tile__image--tulip" src="${tulipOverlayAsset}" alt="" />`;
+    const stage = getTulipStage(tileState);
+    return `<img class="tile__image tile__image--layer tile__image--tulip tile__image--tulip-${stage}" src="${tulipStageAssetMap[stage]}" alt="" />`;
   }
 
   return "";
@@ -2088,15 +2102,31 @@ function canEnterTile(tileId) {
   return adjacencyMap[currentTileId].includes(tileId);
 }
 
+function renderGoalHUD() {
+  if (!dom || !dom.goalCard) {
+    return;
+  }
+  const fRemain = Math.max(0, goalTargets.flower - gameState.flowerHoney);
+  const aRemain = Math.max(0, goalTargets.apple - gameState.appleHoney);
+  const tRemain = Math.max(0, goalTargets.tulip - gameState.tulipHoney);
+  if (dom.goalFlower) dom.goalFlower.textContent = String(fRemain);
+  if (dom.goalApple) dom.goalApple.textContent = String(aRemain);
+  if (dom.goalTulip) dom.goalTulip.textContent = String(tRemain);
+  dom.goalCard.setAttribute(
+    "aria-label",
+    `目标剩余：小白花 ${fRemain}、苹果花 ${aRemain}、郁金香 ${tRemain}`
+  );
+  dom.goalFlower?.parentElement?.classList.toggle("is-done", fRemain === 0);
+  dom.goalApple?.parentElement?.classList.toggle("is-done", aRemain === 0);
+  dom.goalTulip?.parentElement?.classList.toggle("is-done", tRemain === 0);
+}
+
 function renderHud() {
   if (!dom) {
     return;
   }
 
-  dom.totalHoney.textContent =
-    `小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
-    ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}` +
-    ` · 郁金香 ${gameState.tulipHoney}/${goalTargets.tulip}`;
+  renderGoalHUD();
   if (feedbackState.isHudRolling) {
     renderRoundHoneyValue(feedbackState.hudRollingFrom, feedbackState.hudRollingTo);
   } else {
@@ -2114,7 +2144,7 @@ function renderHud() {
     icon.classList.add("bee-counter__icon--jump");
   }
 
-  dom.totalHoney.closest(".hud-card")?.classList.toggle("hud-card--pulse", gameState.totalHoneyPulse);
+  dom.goalCard?.classList.toggle("hud-card--pulse", gameState.totalHoneyPulse);
 
   if (dom.statusText) {
     dom.statusText.textContent = gameState.statusText;
@@ -2511,6 +2541,10 @@ function commitOneSideEffect(entry, options = {}) {
     tileState.growthStage = "sprout";
   } else if (entry.sideEffect === "advance-flower-to-bloom") {
     tileState.growthStage = "bloom";
+  } else if (entry.sideEffect === "advance-tulip-to-sprout") {
+    tileState.growthStage = "sprout";
+  } else if (entry.sideEffect === "advance-tulip-to-bloom") {
+    tileState.growthStage = "bloom";
   }
 
   if (options.render) {
@@ -2891,14 +2925,26 @@ function extendRun(tileId) {
       });
     }
   } else if (tileState.type === "tulip" && !alreadyInPendingScore) {
-    // 郁金香：采集 +2 花蜜，无阶段流转
-    gameState.pendingScoreList.push({
-      tileId,
-      type: "tulip",
-      amount: 2,
-      sideEffect: null,
-    });
-    incrementCombo(tileId);
+    const tulipStage = getTulipStage(tileState);
+    if (tulipStage === "bloom") {
+      gameState.pendingScoreList.push({
+        tileId,
+        type: "tulip",
+        amount: 2,
+        sideEffect: "advance-tulip-to-sprout",
+      });
+      incrementCombo(tileId);
+    } else {
+      // sprout：0 花蜜，不触发 Combo / 不出飞花，
+      // silentBounce 小跳 + 顶点切回 bloom
+      gameState.pendingScoreList.push({
+        tileId,
+        type: "tulip_sprout",
+        amount: 0,
+        sideEffect: "advance-tulip-to-bloom",
+        silentBounce: true,
+      });
+    }
   } else if (
     tileState.type === "apple_tree" &&
     getAppleTreeGrowthStage(tileState) === "blossom" &&
