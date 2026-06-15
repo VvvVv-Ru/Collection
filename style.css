@@ -309,6 +309,98 @@ body::before {
   filter: brightness(0.55) saturate(0.75);
 }
 
+.board__trail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+  opacity: 1;
+  transition: opacity 260ms ease;
+  z-index: 0;
+}
+
+.board__trail--fading {
+  opacity: 0;
+}
+
+.board__trail-glow {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 28;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.6));
+}
+
+.board__trail-stroke {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 16;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.board__trail-flow {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 12 18;
+  animation: board-trail-flow 900ms linear infinite;
+}
+
+@keyframes board-trail-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -30;
+  }
+}
+
+.board__trail-head {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.85));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: board-trail-head-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes board-trail-head-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+.board__trail--single .board__trail-glow,
+.board__trail--single .board__trail-stroke,
+.board__trail--single .board__trail-flow {
+  display: none;
+}
+
+.board__trail--fail .board__trail-stroke {
+  stroke: #ff6363;
+}
+
+.board__trail--fail .board__trail-glow {
+  stroke: #ff6363;
+  filter: drop-shadow(0 0 12px rgba(255, 99, 99, 0.7));
+}
+
+.board__trail--fail .board__trail-flow {
+  stroke: #ffb4b4;
+}
+
+.board__trail--fail .board__trail-head {
+  fill: #ff7878;
+  filter: drop-shadow(0 0 10px rgba(255, 99, 99, 0.8));
+}
+
 .tile {
   position: absolute;
   left: var(--left);
@@ -458,6 +550,10 @@ body::before {
   transform: translateX(-50%);
   object-fit: contain;
   transform-origin: top center;
+}
+
+.tile__image--flower-sprout {
+  inset: calc(10% + 18px) auto auto 50%;
 }
 
 .tile__image--apple-tree {

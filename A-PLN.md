@@ -150,6 +150,8 @@
 #### R2：苹果果树地块
 - 说明：未解锁地块在被解锁后，若其类型为苹果果树，则默认处于“开花阶段”
 - 采集收益：获得 3 朵花蜜
+- 状态循环（passby-20260615 修订）：`blossom → fruit → harvested → blossom`，每次玩家"经过一次"即推进一档，与回合数无关
+- 收益规则：仅 `blossom` 被经过时给 +3 花蜜；`fruit / harvested` 经过不得分但仍推进状态
 - 资源建议：底图 `tile-empty.png` + 前景 `apple_tree_blossom_01.png`
 
 #### R3：橘子果树地块
@@ -195,7 +197,7 @@
    - 类型建议：`apple_tree`
    - 前景切图：`apple_tree_blossom_01.png`
    - 状态切图：`apple_tree_blossom_01.png` / `apple_tree_fruit_01.png` / `apple_tree_harvested_01.png`
-   - 规则：未解锁时不暴露；解锁后默认处于开花阶段；在 `blossom` 状态被采集时获得 3 朵花蜜，并流转到 `fruit` 状态；随后在**下一回合开始时**自动流转到 `harvested` 状态；底图始终复用 `tile-empty.png`
+   - 规则（passby-20260615 修订）：未解锁时不暴露；解锁后默认 `blossom`；每次玩家"经过一次"即在松手成功结算瞬间推进一档，循环 `blossom → fruit → harvested → blossom`；仅 `blossom` 经过时获得 3 朵花蜜，`fruit / harvested` 经过不得分；同一轮重复经过同一棵仅推进一档；本轮撞天敌失败则被路过的苹果树不推进；底图始终复用 `tile-empty.png`
 
 3. 橘子果树地块
    - 类型建议：`orange_tree`
@@ -365,3 +367,113 @@
 - 任务 ID：`A-PLN-SETTLE-SEQUENCE-01`
 - 当前状态：规则已锁定，已交 `@B-COD` 落地
 - 下一步：`@B-COD` 实现 -> 实机回归 -> 必要时由 `@B-FIX` 微调手感参数
+
+---
+
+## 任务卡：一笔画路径轨迹（A-PLN-PATH-TRAIL-01）
+
+- 任务 ID：`A-PLN-PATH-TRAIL-01`
+- 目标：在棋盘上叠加白色一笔画轨迹，让玩家清楚看到本轮走过的路径与方向
+
+### 已确认口径
+- 主色：白色 + 半透明（柔光 + 主笔触 + 流光虚线 + 笔尖呼吸圆）
+- 形态：直线段 polyline 连接（不做曲线平滑）
+- 退场：成功结算飞币全部归集后再淡出（接 `A-PLN-SETTLE-SEQUENCE-01` 尾巴）
+- 失败：撞天敌时轨迹变红 + 与棋盘红闪同步淡出
+- 单格（仅起点未拖动）：只显示笔尖呼吸圆，不画连接线
+- SVG 层 `pointer-events: none`、位于 tile 之下，不遮挡花/树/敌人/危险数字
+
+### 实施摘要（已交 @B-COD 完成）
+- 见 `B-COD.md` 中 `B-COD-PATH-TRAIL-01`
+
+### 验收
+1. 拖动 ≥2 格：起点→当前格出现白色一笔画，流光动画 + 笔尖呼吸圆在当前格
+2. 仅按下起点未拖动：只显示笔尖呼吸圆
+3. 成功结算：飞币序列正常，轨迹保留到最后一朵归集后淡出
+4. 撞天敌：轨迹变红 + 与棋盘红闪同步消失
+5. 轨迹始终在 tile 之下
+6. `node --check app.js` 通过
+
+### Handoff
+- 当前状态：已落地，等 `@B-FIX` 实机回归
+- 下一步：浏览器人工检查上述 5 个验收点
+
+---
+
+## 任务卡：小白花两阶段（A-PLN-FLOWER-STAGES-01）
+
+- 任务 ID：`A-PLN-FLOWER-STAGES-01`
+- 目标：小白花地块新增 `bloom / sprout` 两阶段流转，模仿苹果树状态机
+
+### 已确认口径
+- 命名规范：方案 2（统一前缀 + 阶段名）
+  - `assets/tiles/flower_bloom_01.png`（开花，原 `flower_01.png` 改名）
+  - `assets/tiles/flower_sprout_01.png`（嫩芽，新增）
+- 默认初始阶段：新解锁的 flower 默认 `bloom`
+- 收益：
+  - `bloom` 被采集 → +1 花蜜（沿用旧值），触发 Combo + 小跳 + 1 朵飞花
+  - `sprout` 被采集 → +0 花蜜，不触发 Combo / 小跳 / 飞花
+- 阶段切换时机：和苹果树一致 —— 在结算动画结束（`commitPendingSideEffects`）时统一推进
+  - 被采集的 `bloom` → 结算后变 `sprout`
+  - 被采集的 `sprout` → 结算后变 `bloom`
+- 失败（撞天敌）：本轮所有 `pendingScoreList` 作废，阶段不推进
+- 同一格在同一次拖动中重复经过：沿用 `alreadyInPendingScore` 去重，不重复加分也不重复推进
+
+### 实施摘要（已交 @B-COD 完成）
+- 见 `B-COD.md` 中 `B-COD-FLOWER-STAGES-01`
+
+### 验收
+1. 新游戏开局所有 flower 都显示 `flower_bloom_01.png`
+2. 采集一朵 bloom → 飞币序列结束后该格显示 `flower_sprout_01.png`
+3. 第二轮再采集同一格 sprout → 不出飞币、不计 Combo、结算后该格回到 `flower_bloom_01.png`
+4. 撞天敌：当轮所有路过的 flower 阶段保持不变
+5. `node --check app.js` 通过
+
+---
+
+## 任务卡：结算节奏与阶段切换同步（A-PLN-SETTLE-STAGE-SYNC-01）
+
+- 任务 ID：`A-PLN-SETTLE-STAGE-SYNC-01`
+- 目标：让格子小跳与该格阶段图切换在视觉上同步，而不是所有阶段最后一次性切
+
+### 已确认口径
+- 视觉时机：A2 —— 小跳到最高点（约 `bounceDurationMs / 2 ≈ 110ms`）瞬间切换该格阶段图
+- amount=0 条目（sprout / harvested 路过）：C1 —— 在 `tick()` 跳过它们时同步即时 commit 阶段，不出小跳、不出飞花
+- sprout 不补孤立空跳，保持序列只跳"有花蜜的格"
+- harvested-only 早返回分支（不进飞币序列）保持原 `commitPendingSideEffects` 一把推进
+- 失败分支不变：`pendingScoreList = []`，阶段不推进
+
+### 实施摘要
+- 见 `B-COD.md` `B-COD-SETTLE-STAGE-SYNC-01`
+
+### 验收
+1. bloom 花：飞币离开同时该格跳到顶点变 sprout
+2. 苹果 blossom（amount=3）：跳到顶点变 fruit，剩余 2 朵飞花继续从该格飞出
+3. 拖动序列里夹一格 sprout：无跳无飞花，但视觉上仍按序列顺序变回 bloom
+4. 撞天敌：阶段保持不变
+5. 仅 harvested 路过：捷径分支正常切换
+6. `node --check app.js` 通过
+
+---
+
+## 任务卡：sprout / harvested 静默小跳（A-PLN-SPROUT-BOUNCE-01）
+
+- 任务 ID：`A-PLN-SPROUT-BOUNCE-01`
+- 目标：sprout 采集与苹果 harvested 路过时仍走"小跳 + 顶点切图"反馈，但不出飞花、不入花蜜
+
+### 已确认口径
+- 适用范围：sprout 采集（flower）、苹果 fruit 路过、苹果 harvested 路过——所有 amount=0 且引发阶段切换的条目统一标记 `silentBounce: true`
+- 视觉：跳起 → 顶点切换阶段图，节奏与 amount>0 条目一致，消耗一个 `staggerMs` 槽位
+- 不出 +0 浮字
+- 不出飞花
+- harvested-only 早返回分支：若包含 silentBounce 条目，改为走 `playRunSettlementSequence`（保留小跳节奏），否则继续走原即时 commit 捷径
+- 失败分支不变
+
+### 实施摘要
+- 见 `B-COD.md` `B-COD-SPROUT-BOUNCE-01`
+
+### 验收
+1. 拖动 = bloom A → sprout B → 苹果 blossom C：A 跳变 sprout、B 跳变 bloom（无飞花、无 +0）、C 跳变 fruit + 3 朵飞花
+2. 单独拖一条全是 sprout / harvested：全程节奏均匀小跳，每格切下一阶段，不出花蜜
+3. 撞天敌：阶段不变、不跳
+4. `node --check app.js` 通过

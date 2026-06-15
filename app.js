@@ -31,7 +31,9 @@ const rowSlots = [
 ];
 const startTileId = "T18";
 const initialBeeCount = 5;
-const honeyGoalTarget = 15;
+const goalTargets = { flower: 12, apple: 2 };
+// 兼容旧字段：sum 仅用于日志与回退展示，胜负判定改为按 goalTargets 分项达成
+const honeyGoalTarget = goalTargets.flower + goalTargets.apple;
 const initialStatusText = "选择任意已翻开的格子（天敌除外）作为起点，按住滑动。";
 const animationDurations = {
   failFlash: 420,
@@ -40,6 +42,7 @@ const animationDurations = {
   honeyPulse: 480,
   toast: 1400,
   tileFlip: 260,
+  trailFade: 260,
 };
 const defaultTileAppearConfig = Object.freeze({
   durationMs: 300,
@@ -64,7 +67,10 @@ const threatEdgeAssetMap = {
   "lower-left": "./assets/tiles/tile-edge-lower-left.png",
   "lower-right": "./assets/tiles/tile-edge-lower-right.png",
 };
-const flowerOverlayAsset = "./assets/tiles/flower_01.png";
+const flowerStageAssetMap = {
+  bloom: "./assets/tiles/flower_bloom_01.png",
+  sprout: "./assets/tiles/flower_sprout_01.png",
+};
 const appleTreeStateAssetMap = {
   blossom: "./assets/tiles/apple_tree_blossom_01.png",
   fruit: "./assets/tiles/apple_tree_fruit_01.png",
@@ -357,7 +363,14 @@ function summarizeTileTypes(tileStateMap) {
 }
 
 function getInitialGrowthStage(type) {
-  return type === "apple_tree" ? "blossom" : null;
+  if (type === "apple_tree") return "blossom";
+  if (type === "flower") return "bloom";
+  return null;
+}
+
+function getFlowerStage(tileState) {
+  if (!tileState || tileState.type !== "flower") return null;
+  return flowerStageAssetMap[tileState.growthStage] ? tileState.growthStage : "bloom";
 }
 
 function buildTypeMap(options = {}) {
@@ -417,6 +430,8 @@ function createInitialGameState(options = {}) {
     roundConfig: { ...typeMap },
     revealedTiles,
     totalHoney: 0,
+    flowerHoney: 0,
+    appleHoney: 0,
     roundHoney: 0,
     remainingBees: initialBeeCount,
     isDragging: false,
@@ -437,6 +452,9 @@ function createInitialGameState(options = {}) {
     statusText: initialStatusText,
     lastOutcome: null,
     isFailFlash: false,
+    trailPath: [],
+    trailFading: false,
+    trailFail: false,
     invalidFlashTileIds: [],
     shakeTileIds: [],
     flipTileIds: [],
@@ -643,6 +661,19 @@ function triggerStartPulse(tileId) {
       triggerRenderOnly();
     }
   }, animationDurations.startPulse);
+}
+
+function scheduleTrailFadeOut(delayMs = 0) {
+  scheduleFeedback(() => {
+    gameState.trailFading = true;
+    triggerRenderOnly();
+    scheduleFeedback(() => {
+      gameState.trailPath = [];
+      gameState.trailFading = false;
+      gameState.trailFail = false;
+      triggerRenderOnly();
+    }, animationDurations.trailFade);
+  }, delayMs);
 }
 
 function triggerFailFeedback(tileIds = []) {
@@ -940,7 +971,9 @@ function updateGameOverState() {
   gameState.isGameOver = shouldGameOver;
 
   if (shouldGameOver) {
-    gameState.statusText = `游戏结束 · 总花蜜：${gameState.totalHoney}`;
+    gameState.statusText =
+      `游戏结束 · 小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
+      ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}`;
     showToast("游戏结束", "game-over");
     logEvent("游戏结束", getStateSnapshot());
   }
@@ -1561,21 +1594,10 @@ function getAppleTreeGrowthStage(tileState) {
 }
 
 function getAppleTreeStageCountdown(tileState) {
+  // 新机制（passby-20260615）：苹果树每次"经过"即刻推进一档，
+  // 不再有"剩 N 回合切换"的概念，统一不显示回合倒计时角标。
   if (!tileState || tileState.type !== "apple_tree" || !tileState.revealed) {
     return null;
-  }
-  const stage = getAppleTreeGrowthStage(tileState);
-  if (stage === "blossom") {
-    return tileState.pendingFruit ? 1 : null;
-  }
-  if (stage === "fruit") {
-    const count = tileState.fruitRoundCount || 1;
-    // count=1 → 下回合 count→2（仍是 fruit），再下回合切 harvested，剩 2 回合
-    // count=2 → 下回合切 harvested，剩 1 回合
-    return Math.max(1, 3 - count);
-  }
-  if (stage === "harvested") {
-    return tileState.pendingReBloom ? 1 : null;
   }
   return null;
 }
@@ -1801,7 +1823,8 @@ function getTileAsset(tileState) {
 
 function getSafeTileOverlayMarkup(tileState) {
   if (tileState.type === "flower") {
-    return `<img class="tile__image tile__image--layer tile__image--flower" src="${flowerOverlayAsset}" alt="" />`;
+    const stage = getFlowerStage(tileState);
+    return `<img class="tile__image tile__image--layer tile__image--flower tile__image--flower-${stage}" src="${flowerStageAssetMap[stage]}" alt="" />`;
   }
 
   if (tileState.type === "apple_tree") {
@@ -2010,66 +2033,14 @@ function isValidStartCandidate(tileId) {
 }
 
 function advanceAppleTreeStatesForNextRound() {
-  const blossomToFruit = [];
-  const fruitContinue = [];
-  const fruitToHarvested = [];
-  const harvestedToBlossom = [];
-
-  Object.values(gameState.tileStateMap).forEach((tileState) => {
-    if (tileState.type !== "apple_tree") {
-      return;
-    }
-
-    // harvested + 上一轮被路过过 → 重新开花
-    if (tileState.growthStage === "harvested" && tileState.pendingReBloom) {
-      tileState.growthStage = "blossom";
-      tileState.pendingReBloom = false;
-      tileState.pendingFruit = false;
-      tileState.fruitRoundCount = 0;
-      harvestedToBlossom.push(tileState.id);
-      return;
-    }
-
-    // fruit：累计回合数，满 2 个回合后切到 harvested
-    if (tileState.growthStage === "fruit") {
-      const currentCount = tileState.fruitRoundCount || 1;
-      if (currentCount >= 2) {
-        tileState.growthStage = "harvested";
-        tileState.fruitRoundCount = 0;
-        tileState.pendingFruit = false;
-        tileState.pendingReBloom = false;
-        fruitToHarvested.push(tileState.id);
-      } else {
-        tileState.fruitRoundCount = currentCount + 1;
-        fruitContinue.push(tileState.id);
-      }
-      return;
-    }
-
-    // blossom + 上一轮已采过 → 进入 fruit，开始计回合
-    if (tileState.growthStage === "blossom" && tileState.pendingFruit) {
-      tileState.growthStage = "fruit";
-      tileState.pendingFruit = false;
-      tileState.fruitRoundCount = 1;
-      blossomToFruit.push(tileState.id);
-    }
-  });
-
-  if (
-    blossomToFruit.length > 0 ||
-    fruitContinue.length > 0 ||
-    fruitToHarvested.length > 0 ||
-    harvestedToBlossom.length > 0
-  ) {
-    logEvent("下一回合开始，苹果果树推进阶段", {
-      blossomToFruit,
-      fruitContinue,
-      fruitToHarvested,
-      harvestedToBlossom,
-    });
-  }
-
-  return { blossomToFruit, fruitContinue, fruitToHarvested, harvestedToBlossom };
+  // 新机制（passby-20260615）：苹果树状态推进完全由“玩家经过”驱动，
+  // 在 commitPendingSideEffects() 中同步完成。这里保留空壳是为了向后兼容旧调用点。
+  return {
+    blossomToFruit: [],
+    fruitContinue: [],
+    fruitToHarvested: [],
+    harvestedToBlossom: [],
+  };
 }
 
 function getDisplayStartTileId() {
@@ -2099,7 +2070,9 @@ function renderHud() {
     return;
   }
 
-  dom.totalHoney.textContent = `${gameState.totalHoney} / ${honeyGoalTarget}`;
+  dom.totalHoney.textContent =
+    `小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
+    ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}`;
   if (feedbackState.isHudRolling) {
     renderRoundHoneyValue(feedbackState.hudRollingFrom, feedbackState.hudRollingTo);
   } else {
@@ -2145,12 +2118,16 @@ function renderHud() {
   if (dom.gameOver && dom.gameOverSummary) {
     // 通关时优先显示 win 面板，game-over 面板隐藏
     dom.gameOver.hidden = gameState.isGameWin || !gameState.isGameOver;
-    dom.gameOverSummary.textContent = `总花蜜：${gameState.totalHoney}`;
+    dom.gameOverSummary.textContent =
+      `小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
+      ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}`;
   }
 
   if (dom.gameWin && dom.gameWinSummary) {
     dom.gameWin.hidden = !gameState.isGameWin;
-    dom.gameWinSummary.textContent = `已达成目标 ${honeyGoalTarget}，实际花蜜 ${gameState.totalHoney}`;
+    dom.gameWinSummary.textContent =
+      `已达成目标：小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
+      `，苹果花 ${gameState.appleHoney}/${goalTargets.apple}`;
   }
 }
 
@@ -2291,6 +2268,101 @@ function renderBoard() {
   });
 
   dom.board.appendChild(fragment);
+  renderBoardTrail();
+}
+
+const trailSvgNs = "http://www.w3.org/2000/svg";
+
+function getTileCenter(tileId) {
+  const tile = tilesById[tileId];
+  if (!tile) return null;
+  return {
+    x: boardMetrics.leftPadding + tile.slotX * boardMetrics.xUnit,
+    y: boardMetrics.topPadding + tile.row * boardMetrics.yUnit,
+  };
+}
+
+function renderBoardTrail() {
+  if (!dom?.board) return;
+
+  const sourcePath =
+    gameState.currentPath && gameState.currentPath.length > 0
+      ? gameState.currentPath
+      : gameState.trailPath || [];
+
+  let svg = dom.board.querySelector(":scope > svg.board__trail");
+
+  if (!sourcePath || sourcePath.length === 0) {
+    if (svg) svg.remove();
+    return;
+  }
+
+  const points = sourcePath
+    .map((id) => getTileCenter(id))
+    .filter((p) => p);
+
+  if (points.length === 0) {
+    if (svg) svg.remove();
+    return;
+  }
+
+  const boardWidth = parseFloat(dom.board.style.width) || dom.board.clientWidth;
+  const boardHeight = parseFloat(dom.board.style.height) || dom.board.clientHeight;
+
+  if (!svg) {
+    svg = document.createElementNS(trailSvgNs, "svg");
+    svg.classList.add("board__trail");
+    svg.setAttribute("aria-hidden", "true");
+    const glow = document.createElementNS(trailSvgNs, "path");
+    glow.setAttribute("class", "board__trail-glow");
+    const stroke = document.createElementNS(trailSvgNs, "path");
+    stroke.setAttribute("class", "board__trail-stroke");
+    const flow = document.createElementNS(trailSvgNs, "path");
+    flow.setAttribute("class", "board__trail-flow");
+    const head = document.createElementNS(trailSvgNs, "circle");
+    head.setAttribute("class", "board__trail-head");
+    head.setAttribute("r", "10");
+    svg.appendChild(glow);
+    svg.appendChild(stroke);
+    svg.appendChild(flow);
+    svg.appendChild(head);
+    // 插入到棋盘最前面，确保 tile 覆盖在轨迹之上
+    dom.board.insertBefore(svg, dom.board.firstChild);
+  }
+
+  svg.setAttribute("width", String(boardWidth));
+  svg.setAttribute("height", String(boardHeight));
+  svg.setAttribute("viewBox", `0 0 ${boardWidth} ${boardHeight}`);
+
+  svg.classList.toggle("board__trail--fading", !!gameState.trailFading);
+  svg.classList.toggle("board__trail--fail", !!gameState.trailFail);
+  svg.classList.toggle("board__trail--single", points.length < 2);
+
+  const d =
+    points.length >= 2
+      ? points
+          .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
+          .join(" ")
+      : "";
+
+  const glow = svg.querySelector(".board__trail-glow");
+  const stroke = svg.querySelector(".board__trail-stroke");
+  const flow = svg.querySelector(".board__trail-flow");
+  const head = svg.querySelector(".board__trail-head");
+
+  if (d) {
+    glow.setAttribute("d", d);
+    stroke.setAttribute("d", d);
+    flow.setAttribute("d", d);
+  } else {
+    glow.removeAttribute("d");
+    stroke.removeAttribute("d");
+    flow.removeAttribute("d");
+  }
+
+  const headPoint = points[points.length - 1];
+  head.setAttribute("cx", String(headPoint.x));
+  head.setAttribute("cy", String(headPoint.y));
 }
 
 function renderAll() {
@@ -2330,7 +2402,9 @@ function beginRun(tileId, pointerId = null) {
 
   if (gameState.isGameOver || gameState.remainingBees <= 0) {
     gameState.isGameOver = true;
-    gameState.statusText = `游戏结束 · 总花蜜：${gameState.totalHoney}`;
+    gameState.statusText =
+      `游戏结束 · 小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
+      ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}`;
     showToast("游戏结束", "game-over");
     renderHud();
     return { ok: false, reason: "no-bees" };
@@ -2355,6 +2429,9 @@ function beginRun(tileId, pointerId = null) {
   gameState.isDragging = true;
   gameState.dragPointerId = pointerId;
   gameState.currentPath = [tileId];
+  gameState.trailPath = [tileId];
+  gameState.trailFading = false;
+  gameState.trailFail = false;
   gameState.currentRunVisitedTileIds = new Set([tileId]);
   gameState.currentRunHarvestedTileIds = new Set();
   gameState.currentRunHoney = 0;
@@ -2384,16 +2461,38 @@ function computePendingHoneyTotal() {
   return gameState.pendingScoreList.reduce((sum, entry) => sum + (entry.amount || 0), 0);
 }
 
+function commitOneSideEffect(entry, options = {}) {
+  const tileState = gameState.tileStateMap[entry.tileId];
+  if (!tileState) return;
+  // 新机制：经过一次即刻推进一档（blossom -> fruit -> harvested -> blossom）
+  if (entry.sideEffect === "advance-to-fruit") {
+    tileState.growthStage = "fruit";
+    tileState.pendingFruit = false;
+    tileState.pendingReBloom = false;
+    tileState.fruitRoundCount = 0;
+  } else if (entry.sideEffect === "advance-to-harvested") {
+    tileState.growthStage = "harvested";
+    tileState.pendingFruit = false;
+    tileState.pendingReBloom = false;
+    tileState.fruitRoundCount = 0;
+  } else if (entry.sideEffect === "advance-to-blossom") {
+    tileState.growthStage = "blossom";
+    tileState.pendingFruit = false;
+    tileState.pendingReBloom = false;
+    tileState.fruitRoundCount = 0;
+  } else if (entry.sideEffect === "advance-flower-to-sprout") {
+    tileState.growthStage = "sprout";
+  } else if (entry.sideEffect === "advance-flower-to-bloom") {
+    tileState.growthStage = "bloom";
+  }
+
+  if (options.render) {
+    triggerRenderOnly();
+  }
+}
+
 function commitPendingSideEffects(list) {
-  list.forEach((entry) => {
-    const tileState = gameState.tileStateMap[entry.tileId];
-    if (!tileState) return;
-    if (entry.sideEffect === "set-pending-fruit") {
-      tileState.pendingFruit = true;
-    } else if (entry.sideEffect === "set-pending-rebloom") {
-      tileState.pendingReBloom = true;
-    }
-  });
+  list.forEach((entry) => commitOneSideEffect(entry));
 }
 
 function triggerScoreBounce(tileId) {
@@ -2440,8 +2539,13 @@ function playRunSettlementSequence(list, onComplete) {
   let cursor = 0;
 
   function tick() {
-    while (cursor < list.length && list[cursor].amount === 0) {
-      // harvested 等无得分条目：跳过跳跃与飞花，不消耗 stagger，直接前进
+    // 仅“非 silentBounce 的 amount=0”条目走原即时 commit 通道（无视觉节奏）
+    while (
+      cursor < list.length &&
+      list[cursor].amount === 0 &&
+      !list[cursor].silentBounce
+    ) {
+      commitOneSideEffect(list[cursor], { render: true });
       cursor += 1;
     }
 
@@ -2455,8 +2559,21 @@ function playRunSettlementSequence(list, onComplete) {
     const item = list[cursor];
     cursor += 1;
 
+    // 小跳：amount>0 或 silentBounce 都要跳
     triggerScoreBounce(item.tileId);
-    spawnTilePopupText(item.tileId, item.amount);
+
+    // +N 浮字：仅 amount>0 显示，silentBounce 不显示（避免 “+0”）
+    if (item.amount > 0) {
+      spawnTilePopupText(item.tileId, item.amount);
+    }
+
+    // A2：小跳顶点切换阶段图
+    scheduleCollectionTask(
+      () => commitOneSideEffect(item, { render: true }),
+      Math.floor(settlementSequenceConfig.bounceDurationMs / 2)
+    );
+
+    // 飞花：仅 amount>0 触发
     const flowerCount = item.amount;
     for (let i = 0; i < flowerCount; i += 1) {
       scheduleCollectionTask(
@@ -2480,10 +2597,24 @@ function finalizeSuccessRun(context) {
     pendingList,
   } = context;
 
-  // 提交副作用（苹果树状态推进 / 重开花标记）
-  commitPendingSideEffects(pendingList);
+  // 副作用已在 playRunSettlementSequence 的 tick() 中按节奏逐条 commit
+  // 这里不再重复 commit，避免破坏“跳到顶点切换阶段图”的视觉
 
   const gainedHoney = pendingList.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+  // 分项累计：小白花 vs 苹果树花
+  let gainedFlower = 0;
+  let gainedApple = 0;
+  pendingList.forEach((entry) => {
+    const amount = entry.amount || 0;
+    if (amount <= 0) return;
+    if (entry.type === "flower") {
+      gainedFlower += amount;
+    } else if (entry.type === "apple_tree_blossom") {
+      gainedApple += amount;
+    }
+  });
+  gameState.flowerHoney += gainedFlower;
+  gameState.appleHoney += gainedApple;
   gameState.totalHoney += gainedHoney;
   gameState.statusText = consumedBee
     ? `本轮成功，获得 ${gainedHoney} 花蜜。`
@@ -2498,16 +2629,23 @@ function finalizeSuccessRun(context) {
     pathLength,
     consumedBee,
     gainedHoney,
+    gainedFlower,
+    gainedApple,
     totalHoney: gameState.totalHoney,
+    flowerHoney: gameState.flowerHoney,
+    appleHoney: gameState.appleHoney,
     nextStartTileId,
     sideEffects: pendingList.map((entry) => ({ tileId: entry.tileId, sideEffect: entry.sideEffect })),
   });
 
   // 通关 / game-over 判定推迟到序列尾
-  if (gameState.totalHoney >= honeyGoalTarget) {
+  if (
+    gameState.flowerHoney >= goalTargets.flower &&
+    gameState.appleHoney >= goalTargets.apple
+  ) {
     gameState.isGameWin = true;
     gameState.isGameOver = true;
-    gameState.statusText = `恭喜通关！总花蜜：${gameState.totalHoney}`;
+    gameState.statusText = `恭喜通关！小白花 ${gameState.flowerHoney} · 苹果花 ${gameState.appleHoney}`;
     showToast("恭喜通关！", "success");
     logEvent("通关", getStateSnapshot());
   } else if (gameState.remainingBees <= 0) {
@@ -2562,6 +2700,15 @@ function completeRun(outcome) {
     gameState.isDragging = false;
     gameState.dragPointerId = null;
     gameState.currentPath = [];
+    gameState.trailPath = [...path];
+    gameState.trailFail = true;
+    gameState.trailFading = true;
+    scheduleFeedback(() => {
+      gameState.trailPath = [];
+      gameState.trailFading = false;
+      gameState.trailFail = false;
+      triggerRenderOnly();
+    }, animationDurations.failFlash + animationDurations.trailFade);
     gameState.currentRunVisitedTileIds = new Set();
     gameState.currentRunHarvestedTileIds = new Set();
     gameState.hasHitEnemy = false;
@@ -2579,6 +2726,9 @@ function completeRun(outcome) {
   gameState.isDragging = false;
   gameState.dragPointerId = null;
   gameState.currentPath = [];
+  gameState.trailPath = [...path];
+  gameState.trailFading = false;
+  gameState.trailFail = false;
   gameState.currentRunVisitedTileIds = new Set();
   gameState.currentRunHarvestedTileIds = new Set();
   gameState.hasHitEnemy = false;
@@ -2601,12 +2751,15 @@ function completeRun(outcome) {
       updateGameOverState();
     }
     queueRoundHoneyReset();
+    scheduleTrailFadeOut(0);
     renderAll();
     return { ok: true, reason: outcome, path, nextStartTileId };
   }
 
-  if (totalAmount === 0 && hasAnyEntries) {
-    // 仅 harvested 类条目：不播跳/飞花，但仍提交 pendingReBloom 副作用
+  const hasSilentBounce = pendingListSnapshot.some((entry) => entry.silentBounce);
+
+  if (totalAmount === 0 && hasAnyEntries && !hasSilentBounce) {
+    // 无花蜜、无 silentBounce：原即时 commit 捷径
     commitPendingSideEffects(pendingListSnapshot);
     gameState.pendingScoreList = [];
     gameState.statusText = consumedBee
@@ -2620,6 +2773,7 @@ function completeRun(outcome) {
       updateGameOverState();
     }
     queueRoundHoneyReset();
+    scheduleTrailFadeOut(0);
     renderAll();
     return { ok: true, reason: outcome, path, nextStartTileId };
   }
@@ -2633,6 +2787,7 @@ function completeRun(outcome) {
       nextStartTileId,
       pendingList: pendingListSnapshot,
     });
+    scheduleTrailFadeOut(0);
   });
 
   renderAll();
@@ -2653,6 +2808,7 @@ function extendRun(tileId) {
   // 本轮“首访”判定：在写入 currentRunVisitedTileIds 之前抓，用来闸住体力扣减
   const isFirstVisitThisRun = !gameState.currentRunVisitedTileIds.has(tileId);
   gameState.currentPath.push(tileId);
+  gameState.trailPath = [...gameState.currentPath];
   gameState.currentRunVisitedTileIds.add(tileId);
 
   if (tileState.type === "enemy") {
@@ -2680,13 +2836,26 @@ function extendRun(tileId) {
   );
 
   if (tileState.type === "flower" && !alreadyInPendingScore) {
-    gameState.pendingScoreList.push({
-      tileId,
-      type: "flower",
-      amount: 1,
-      sideEffect: null,
-    });
-    incrementCombo(tileId);
+    const flowerStage = getFlowerStage(tileState);
+    if (flowerStage === "bloom") {
+      gameState.pendingScoreList.push({
+        tileId,
+        type: "flower",
+        amount: 1,
+        sideEffect: "advance-flower-to-sprout",
+      });
+      incrementCombo(tileId);
+    } else {
+      // sprout：采集 0 花蜜、不触发 Combo / 不出飞花，
+      // 但走一次“silentBounce 小跳 + 顶点切图”作为视觉反馈
+      gameState.pendingScoreList.push({
+        tileId,
+        type: "flower_sprout",
+        amount: 0,
+        sideEffect: "advance-flower-to-bloom",
+        silentBounce: true,
+      });
+    }
   } else if (
     tileState.type === "apple_tree" &&
     getAppleTreeGrowthStage(tileState) === "blossom" &&
@@ -2695,10 +2864,22 @@ function extendRun(tileId) {
     gameState.pendingScoreList.push({
       tileId,
       type: "apple_tree_blossom",
-      amount: 3,
-      sideEffect: "set-pending-fruit",
+      amount: 1,
+      sideEffect: "advance-to-fruit",
     });
     incrementCombo(tileId);
+  } else if (
+    tileState.type === "apple_tree" &&
+    getAppleTreeGrowthStage(tileState) === "fruit" &&
+    !alreadyInPendingScore
+  ) {
+    gameState.pendingScoreList.push({
+      tileId,
+      type: "apple_tree_fruit",
+      amount: 0,
+      sideEffect: "advance-to-harvested",
+      silentBounce: true,
+    });
   } else if (
     tileState.type === "apple_tree" &&
     getAppleTreeGrowthStage(tileState) === "harvested" &&
@@ -2708,7 +2889,8 @@ function extendRun(tileId) {
       tileId,
       type: "apple_tree_harvested",
       amount: 0,
-      sideEffect: "set-pending-rebloom",
+      sideEffect: "advance-to-blossom",
+      silentBounce: true,
     });
   }
 
@@ -2794,7 +2976,9 @@ function handlePointerDown(event) {
 
   if (gameState.isGameOver || gameState.remainingBees <= 0) {
     gameState.isGameOver = true;
-    gameState.statusText = `游戏结束 · 总花蜜：${gameState.totalHoney}`;
+    gameState.statusText =
+      `游戏结束 · 小白花 ${gameState.flowerHoney}/${goalTargets.flower}` +
+      ` · 苹果花 ${gameState.appleHoney}/${goalTargets.apple}`;
     triggerInvalidStartFeedback(tileId, { message: "游戏结束", tone: "game-over" });
     return;
   }

@@ -1,7 +1,21 @@
 # B-COD 记录
 
 ## Claim
-- 任务 ID：B-COD-SETTLE-SEQUENCE-01
+- 任务 ID：B-COD-APPLE-PASSBY-01
+- 当前 claim：模块《苹果树"一次经过即推进"机制改造》
+- 范围：
+  - 苹果树状态推进改为完全由"玩家经过"驱动，每次成功结算瞬间推进一档
+  - 循环规则：`blossom → fruit → harvested → blossom`
+  - `extendRun()` 中三态分支重写：blossom +3 + `advance-to-fruit`；fruit +0 + `advance-to-harvested`；harvested +0 + `advance-to-blossom`
+  - `commitPendingSideEffects()` 改为直推 `growthStage`，不再使用 `pendingFruit / pendingReBloom / fruitRoundCount`
+  - `advanceAppleTreeStatesForNextRound()` 退役为空壳（保留函数签名以兼容旧调用点）
+  - `getAppleTreeStageCountdown()` 统一返回 `null`，不再显示三态倒计时角标
+  - 撞天敌失败仍走"作废 pending"，被路过的苹果树不推进
+  - 同轮重复经过同一棵苹果树：`alreadyInPendingScore` 去重，仅推进一档
+  - `index.html` 资源版本号升级为 `apple-passby-20260615-1`
+- 历史 claim 已闭环：`B-COD-SETTLE-SEQUENCE-01`（结算延迟 + 飞币序列）
+
+## 旧 claim：B-COD-SETTLE-SEQUENCE-01
 - 当前 claim：模块《结算延迟到松手 + 飞币归集序列》
 - 范围：
   - 拖动期"只记账不入账"：`pendingScoreList` 收集 flower / apple_tree blossom / apple_tree harvested 三类条目
@@ -365,3 +379,96 @@
 - 本模块 M1 已可交给 `B-FIX` 做视觉回归，重点检查：花层居中、透明边、翻牌前后、路径高亮 / 起点 / 失败状态是否遮挡前景花层
 - 默认可交给 `B-FIX` 做浏览器实机回归：Combo 浮层跟随最新采花格、强化档视觉、2.5 秒结束渐隐、音效节流，以及与飞花 / 自定义光标 / BGM 的并存观感
 - 本模块完成后建议回流 `@A-PLN` 做阶段收口；若先做人眼验收，也可先交 `A-ASK` / 用户按上方步骤检查，再决定是否补第二轮爽感优化
+
+---
+
+## 任务卡：一笔画路径轨迹（B-COD-PATH-TRAIL-01）
+
+- 任务 ID：`B-COD-PATH-TRAIL-01`
+- 目标：在棋盘上叠加 SVG 白色一笔画轨迹，让玩家清楚看到本轮路径
+
+### 已实施改动
+- `app.js`
+  - `gameState` 新增 `trailPath / trailFading / trailFail` 三个视觉态字段
+  - `beginRun` 写入 `trailPath = [tileId]`，并清掉 fading/fail
+  - `extendRun` 每次 push 后同步 `trailPath = [...currentPath]`
+  - 新增 `scheduleTrailFadeOut(delayMs)`：先打 `--fading` 等过渡 260ms 再清空轨迹
+  - `completeRun` 失败分支：保留 `trailPath = [...path]`，立刻打 `--fail` + `--fading`，跟随 failFlash 一起淡出
+  - `completeRun` 三个成功分支（纯路过 / 仅 harvested / 进入飞币序列）：都在合适时机调用 `scheduleTrailFadeOut(0)`；飞币序列分支在 `playRunSettlementSequence` 的 `onComplete` 里调用，确保飞币全部归集后才开始淡出
+  - 新增 `renderBoardTrail()`，在 `renderBoard()` 末尾调用；用 `boardMetrics + tilesById` 计算节点中心，复用同一个 `<svg class="board__trail">` 节点，DOM 顺序保证 tile 始终覆盖在轨迹之上
+- `style.css`
+  - 新增 `.board__trail`、`.board__trail-glow`、`.board__trail-stroke`、`.board__trail-flow`、`.board__trail-head`
+  - `--fading` 控制 opacity 过渡；`--fail` 把所有笔触换成红色系
+  - `--single`（路径只有 1 格）时隐藏线条只保留笔尖呼吸圆
+  - 新增 `@keyframes board-trail-flow`（流光虚线）与 `@keyframes board-trail-head-pulse`（笔尖呼吸）
+- `animationDurations` 新增 `trailFade: 260`
+
+### 自检
+- `node --check app.js` 已通过
+- 待 `@B-FIX` 实机回归：路径连续性、笔尖位置、撞天敌染红、飞币归集后淡出时机、SVG 不遮挡花/树/敌人/危险数字
+
+---
+
+## 任务卡：小白花两阶段（B-COD-FLOWER-STAGES-01）
+
+- 任务 ID：`B-COD-FLOWER-STAGES-01`
+- 目标：实现 flower 地块 bloom / sprout 两阶段流转
+
+### 已实施改动
+- `app.js`
+  - 删除常量 `flowerOverlayAsset`，改为 `flowerStageAssetMap = { bloom, sprout }`
+  - `getInitialGrowthStage("flower")` 返回 `"bloom"`，让新解锁 flower 自带阶段
+  - 新增 `getFlowerStage(tileState)`，做 fallback 到 `bloom`
+  - `getSafeTileOverlayMarkup` 中 flower 分支按 stage 取图，并附加 `tile__image--flower-bloom / -sprout` 钩子类
+  - `extendRun` flower 分支按 stage 分流：
+    - `bloom`：`amount=1`，`sideEffect="advance-flower-to-sprout"`，照旧 `incrementCombo`
+    - `sprout`：`amount=0`，`sideEffect="advance-flower-to-bloom"`，不触发 Combo
+  - `commitPendingSideEffects` 新增两条分支：`advance-flower-to-sprout` / `advance-flower-to-bloom`
+  - 阶段推进时机沿用现有链路：飞币序列收尾 → `finalizeSuccessRun` → `commitPendingSideEffects`；harvested-only 分支也已调用 `commitPendingSideEffects`，sprout 0 花蜜路径会落到这里
+  - `playRunSettlementSequence` 中 `amount === 0` 条目自动跳过小跳与飞花，sprout 行为不需要额外改
+
+### 自检
+- `node --check app.js` 已通过
+- 待 `@B-FIX` 实机回归：bloom→sprout 切换时机、sprout 再被采集回 bloom、撞天敌阶段保持、同 drag 重复经过去重
+
+---
+
+## 任务卡：结算节奏与阶段切换同步（B-COD-SETTLE-STAGE-SYNC-01）
+
+- 任务 ID：`B-COD-SETTLE-STAGE-SYNC-01`
+- 目标：把阶段切换从"结算尾段一把 commit"改为"跟随每格小跳同步 commit"
+
+### 已实施改动
+- `app.js`
+  - 抽出 `commitOneSideEffect(entry, { render })`，原 `commitPendingSideEffects` 改为对每条 entry 调用前者
+  - `playRunSettlementSequence.tick()`：
+    - 跳过 amount=0 条目时，对每条调用 `commitOneSideEffect(..., { render: true })`，按序列顺序即时推进
+    - 对 amount>0 的当前条目：`triggerScoreBounce` 同时 `scheduleCollectionTask(commitOneSideEffect, bounceDurationMs/2)`，在小跳顶点切换阶段图
+  - `finalizeSuccessRun`：去掉 `commitPendingSideEffects(pendingList)`，避免重复 commit
+  - harvested-only 早返回分支（`completeRun` 内 `totalAmount === 0 && hasAnyEntries`）保持原 `commitPendingSideEffects` 不变
+
+### 自检
+- `node --check app.js` 已通过
+- 待 `@B-FIX` 实机回归：
+  - 苹果 blossom（amount=3）跳到顶点 fruit 图替换瞬间，剩余飞花仍从该格飞出
+  - bloom→sprout 时机与小跳顶点是否对齐
+  - sprout 夹在中间时序无空帧
+  - 撞天敌阶段保持
+
+---
+
+## 任务卡：sprout / harvested 静默小跳（B-COD-SPROUT-BOUNCE-01）
+
+- 任务 ID：`B-COD-SPROUT-BOUNCE-01`
+- 目标：amount=0 且引发阶段切换的条目也走小跳 + 顶点切图
+
+### 已实施改动
+- `app.js` extendRun：sprout、苹果 fruit、苹果 harvested 三种 amount=0 条目入栈时新增 `silentBounce: true`
+- `app.js` playRunSettlementSequence.tick()：
+  - 即时 commit 通道改为只接受 `amount === 0 && !silentBounce` 条目
+  - 主循环对当前条目无条件 `triggerScoreBounce` + 顶点 commit；amount>0 才出 `+N` 浮字与飞花
+- `app.js` completeRun：harvested-only 早返回分支增加 `hasSilentBounce` 判定，存在 silentBounce 时改走 `playRunSettlementSequence`，保留小跳节奏
+
+### 自检
+- `node --check app.js` 通过
+- 待 `@B-FIX` 实机回归：sprout 单跳无飞花、harvested 单跳无飞花、bloom/sprout/苹果混跳节奏均匀
