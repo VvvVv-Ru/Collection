@@ -2878,6 +2878,120 @@ function commitPendingSideEffects(list) {
   list.forEach((entry) => commitOneSideEffect(entry));
 }
 
+// 回合结束钩子：每只已揭示的小鸡与一个相邻植被地块互换位置。
+// 规则：
+//  - 触发对象：revealed && type === "enemy" 的所有 tile
+//  - 候选目标：isSafeTileType(type) 的相邻 tile（不论 revealed），即 empty/flower/tulip/apple_tree
+//  - 选择策略：随机一个
+//  - 冲突处理：同步快照所有 (enemy, target)；按 enemyId 升序结算；
+//             若 target 在结算时已变为 enemy（被其它鸡抢占），该只本回合跳过
+//  - 状态语义：地块的 revealed/unlocked 不动，只换 type 与 growthStage；
+//             其余生长相关字段（pendingFruit / fruitRoundCount / pendingReBloom）
+//             随 type 一起带过去，确保苹果树阶段不丢失
+//  - dangerCount：交换后统一全盘重算
+//  - 视觉：复用 triggerTileFlip 给两个互换格各做一次翻牌闪现
+function runEnemyMovementsAfterRound() {
+  // —— 1. 同步快照 ——
+  const moves = []; // { enemyId, targetId }
+  const skippedNoNeighbor = [];
+
+  tiles.forEach((tile) => {
+    const state = gameState.tileStateMap[tile.id];
+    if (!state || !state.revealed || state.type !== "enemy") return;
+
+    const vegNeighbors = adjacencyMap[tile.id].filter((nid) => {
+      const ns = gameState.tileStateMap[nid];
+      // 小鸡只能跟"已经翻开的"安全植被格交换
+      return ns && ns.revealed && isSafeTileType(ns.type);
+    });
+
+    if (vegNeighbors.length === 0) {
+      skippedNoNeighbor.push(tile.id);
+      return;
+    }
+
+    const targetId = vegNeighbors[Math.floor(Math.random() * vegNeighbors.length)];
+    moves.push({ enemyId: tile.id, targetId });
+  });
+
+  if (moves.length === 0 && skippedNoNeighbor.length === 0) {
+    return;
+  }
+
+  // 按 enemyId 升序，保证结算顺序确定
+  moves.sort((a, b) => a.enemyId.localeCompare(b.enemyId));
+
+  const flipTileSet = new Set();
+  const appliedMoves = [];
+  const skippedConflict = [];
+
+  // —— 2. 逐只结算 ——
+  moves.forEach(({ enemyId, targetId }) => {
+    const enemyState = gameState.tileStateMap[enemyId];
+    const targetState = gameState.tileStateMap[targetId];
+    if (!enemyState || !targetState) return;
+
+    // 复查：目标格此刻是否仍是"已揭示的植被"？若被先动的小鸡抢占（已变 enemy）
+    // 或后续机制把 revealed 翻回 false，都跳过
+    if (!targetState.revealed || !isSafeTileType(targetState.type)) {
+      skippedConflict.push({ enemyId, targetId });
+      return;
+    }
+
+    // 交换 type
+    const enemyType = enemyState.type;
+    const vegType = targetState.type;
+    enemyState.type = vegType;
+    targetState.type = enemyType;
+
+    // 交换 growthStage 与相关阶段字段（让"植物身份"完整带走）
+    const enemyGrowthStage = enemyState.growthStage;
+    const enemyPendingFruit = enemyState.pendingFruit;
+    const enemyFruitRoundCount = enemyState.fruitRoundCount;
+    const enemyPendingReBloom = enemyState.pendingReBloom;
+
+    enemyState.growthStage = targetState.growthStage;
+    enemyState.pendingFruit = targetState.pendingFruit;
+    enemyState.fruitRoundCount = targetState.fruitRoundCount;
+    enemyState.pendingReBloom = targetState.pendingReBloom;
+
+    // 小鸡处原本没有有意义的植物状态，按新 type 的初始值兜底
+    targetState.growthStage = enemyGrowthStage ?? getInitialGrowthStage(enemyType);
+    targetState.pendingFruit = enemyPendingFruit ?? false;
+    targetState.fruitRoundCount = enemyFruitRoundCount ?? 0;
+    targetState.pendingReBloom = enemyPendingReBloom ?? false;
+
+    // revealed / unlocked / id / row / col / slotX / neighbors 一律不动
+
+    flipTileSet.add(enemyId);
+    flipTileSet.add(targetId);
+    appliedMoves.push({ from: enemyId, to: targetId });
+  });
+
+  // —— 3. 全盘重算 dangerCount + 同步 roundConfig（仅供日志快照） ——
+  tiles.forEach((tile) => {
+    const state = gameState.tileStateMap[tile.id];
+    if (!state) return;
+    state.dangerCount = adjacencyMap[tile.id].filter(
+      (nid) => gameState.tileStateMap[nid]?.type === "enemy"
+    ).length;
+    if (gameState.roundConfig) {
+      gameState.roundConfig[tile.id] = state.type;
+    }
+  });
+
+  // —— 4. 视觉反馈 ——
+  flipTileSet.forEach((tileId) => triggerTileFlip(tileId));
+  triggerRenderOnly();
+
+  // —— 5. 日志 ——
+  logEvent("小鸡回合移动", {
+    moves: appliedMoves,
+    skippedNoNeighbor,
+    skippedConflict,
+  });
+}
+
 function triggerScoreBounce(tileId) {
   const startedAt = getNow();
   if (!gameState.scoreBounceTileIds.includes(tileId)) {
@@ -3117,6 +3231,8 @@ function completeRun(outcome) {
       gameState.trailFading = false;
       gameState.trailFail = false;
       triggerRenderOnly();
+      // 小鸡群在失败动画播完后移动
+      runEnemyMovementsAfterRound();
     }, animationDurations.failFlash + animationDurations.trailFade);
     gameState.currentRunVisitedTileIds = new Set();
     gameState.currentRunHarvestedTileIds = new Set();
@@ -3160,6 +3276,8 @@ function completeRun(outcome) {
     }
     queueRoundHoneyReset();
     scheduleTrailFadeOut(0);
+    // 小鸡群在本轮（纯路过）结束时移动
+    runEnemyMovementsAfterRound();
     renderAll();
     return { ok: true, reason: outcome, path, nextStartTileId };
   }
@@ -3182,6 +3300,8 @@ function completeRun(outcome) {
     }
     queueRoundHoneyReset();
     scheduleTrailFadeOut(0);
+    // 小鸡群在本轮（零花蜜、有副作用）结束时移动
+    runEnemyMovementsAfterRound();
     renderAll();
     return { ok: true, reason: outcome, path, nextStartTileId };
   }
@@ -3196,6 +3316,8 @@ function completeRun(outcome) {
       pendingList: pendingListSnapshot,
     });
     scheduleTrailFadeOut(0);
+    // 小鸡群在结算动画播完后移动
+    runEnemyMovementsAfterRound();
   });
 
   renderAll();
