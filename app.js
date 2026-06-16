@@ -264,14 +264,14 @@ const levelConfigs = [
 
   // ===== 终局 =====
   {
-    // L16 climax：8 鸟 + 全机制聚合 + far-cluster。
+    // L16 climax：3 鸟 + 全机制聚合 + far-cluster。
     id: "L14", name: "第 14 关 · 终局", chapter: 3, layout: LAYOUT_22,
-    tileTypeRatioBaseCounts: { enemy: 8, flower: 3, flower_yellow: 2, flower_red: 2, apple_tree: 2, tulip: 1, tulip_white: 1, bee: 2, caterpillar: 1, empty: 0 },
+    tileTypeRatioBaseCounts: { enemy: 3, flower: 3, flower_yellow: 2, flower_red: 2, apple_tree: 2, tulip: 1, tulip_white: 1, bee: 2, caterpillar: 1, empty: 5 },
     initialBeeCount: 7,
     goalTargets: { flower: 3, flower_yellow: 2, flower_red: 2, apple: 2, appleFruit: 2, tulip: 1, tulip_white: 1 },
     enemyPlacementRule: "far-from-start-then-cluster",
-    hooks: "终局：8 只鸟 + 全机制",
-    intro: "这是最后一关。起点附近还安全，深处藏着 8 只鸟。决定要走多远。",
+    hooks: "终局：3 只鸟 + 全机制",
+    intro: "这是最后一关。起点附近还安全，深处藏着 3 只鸟。决定要走多远。",
     designerNotes: { expectedRunsToWin: 12, expectedFailRate: 0.55, kishoStage: "Climax", rhythm: "climax" },
   },
 ];
@@ -320,6 +320,8 @@ const tileAssetMap = {
   bee: "./assets/tiles/bee_01.png?v=bee-20260616-1",
   caterpillar: "./assets/tiles/tile-empty.png",
   fertilizer: "./assets/tiles/tile-empty.png",
+  // A-PLN-EATEN-01：青虫离开的格子（被啃光的灰色土地），直接用整图替换
+  eaten: "./assets/tiles/tile-empty-grey.png",
 };
 const threatEdgeAssetMap = {
   left: "./assets/tiles/tile-edge-left.png",
@@ -2287,6 +2289,7 @@ function isSafeTileType(type) {
     type === "bee" ||
     type === "caterpillar" ||
     type === "fertilizer" ||
+    type === "eaten" ||
     type === "empty"
   );
 }
@@ -2588,6 +2591,10 @@ function getTileTypeLabel(type) {
 
   if (type === "fertilizer") {
     return "粪便";
+  }
+
+  if (type === "eaten") {
+    return "被啃过的地";
   }
 
   if (type === "empty") {
@@ -2925,6 +2932,17 @@ function renderGoalHUD() {
   dom.goalAppleFruit?.parentElement?.classList.toggle("is-done", afRemain === 0);
   dom.goalTulip?.parentElement?.classList.toggle("is-done", tRemain === 0);
   dom.goalTulipWhite?.parentElement?.classList.toggle("is-done", twRemain === 0);
+
+  // A-PLN-GOAL-CLEARED-01：目标完成后自动从收集栏消失，避免占位混淆。
+  // CSS 内置 360ms 延时让 .is-collecting 的弹跳收尾先播完，再淡出 + 缩小 + 宽度坍缩。
+  // 关卡重开时 fRemain 重新 > 0，class 自动移除，CSS transition 反向播放 = "icon 长出来"。
+  dom.goalFlowerItem?.classList.toggle("is-cleared", fRemain === 0 && goalTargets.flower > 0);
+  dom.goalFlowerYellowItem?.classList.toggle("is-cleared", fyRemain === 0 && goalTargets.flower_yellow > 0);
+  dom.goalFlowerRedItem?.classList.toggle("is-cleared", frRemain === 0 && goalTargets.flower_red > 0);
+  dom.goalAppleItem?.classList.toggle("is-cleared", aRemain === 0 && goalTargets.apple > 0);
+  dom.goalAppleFruitItem?.classList.toggle("is-cleared", afRemain === 0 && goalTargets.appleFruit > 0);
+  dom.goalTulipItem?.classList.toggle("is-cleared", tRemain === 0 && goalTargets.tulip > 0);
+  dom.goalTulipWhiteItem?.classList.toggle("is-cleared", twRemain === 0 && goalTargets.tulip_white > 0);
 
   // A-PLN-GOAL-INCOMING-01：路径中已经存在"目标还需要"的有效采集物时，
   // 给对应 goal-item 加 .is-incoming 触发摇晃动画，预告即将入账。
@@ -3815,8 +3833,8 @@ function runCaterpillarMovementsAfterRound() {
       return;
     }
 
-    // 源格立即变 empty（青虫已起跳）
-    sourceState.type = "empty";
+    // A-PLN-EATEN-01：源格变 eaten（被啃过的灰色土地），不再是普通 empty
+    sourceState.type = "eaten";
     sourceState.growthStage = null;
     sourceState.pendingFruit = false;
     sourceState.fruitRoundCount = 0;
@@ -4096,8 +4114,14 @@ function runEnemyMovementsAfterRound() {
     const neighbors = adjacencyMap[enemyId];
     const swapNeighbors = neighbors.filter((nid) => {
       const ns = gameState.tileStateMap[nid];
-      // 小鸡换位：只挑"已揭示的 safe 格"，但排除 fertilizer（粪便保留独立）
-      return ns && ns.revealed && isSafeTileType(ns.type) && ns.type !== "fertilizer";
+      // 小鸡换位：只挑"已揭示的 safe 格"，排除 fertilizer（粪便保留独立）和 eaten（啃过的地保留独立）
+      return (
+        ns &&
+        ns.revealed &&
+        isSafeTileType(ns.type) &&
+        ns.type !== "fertilizer" &&
+        ns.type !== "eaten"
+      );
     });
 
     if (swapNeighbors.length === 0) {
@@ -4206,12 +4230,13 @@ function runEnemyMovementsAfterRound() {
     const targetState = gameState.tileStateMap[targetId];
     if (!enemyState || !targetState) return;
 
-    // 复查：目标格此刻是否仍是"已揭示的 safe 非 fertilizer"？若被先动的鸡抢占（已变 enemy）
+    // 复查：目标格此刻是否仍是"已揭示的 safe 非 fertilizer 非 eaten"？若被先动的鸡抢占（已变 enemy）
     // 或被其它机制改写都跳过
     if (
       !targetState.revealed ||
       !isSafeTileType(targetState.type) ||
-      targetState.type === "fertilizer"
+      targetState.type === "fertilizer" ||
+      targetState.type === "eaten"
     ) {
       skippedConflict.push({ enemyId, targetId });
       return;

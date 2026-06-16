@@ -314,6 +314,23 @@ body::before {
   animation: goal-collect-bounce 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* A-PLN-GOAL-CLEARED-01：目标完成后自动从收集栏消失，避免占位混淆。
+   节奏：360ms 延时让 .is-collecting 弹跳收尾先播完，再 280ms 淡出+缩小，
+   然后 280ms 宽度/margin 坍缩让右侧 icon 平滑左移补位。 */
+.goal-item.is-cleared {
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.55);
+  width: 0;
+  margin: 0;
+  overflow: hidden;
+  transition:
+    opacity 280ms ease 360ms,
+    transform 280ms ease 360ms,
+    width 280ms ease 640ms,
+    margin 280ms ease 640ms;
+}
+
 /* A-PLN-GOAL-INCOMING-01：拖动路径中已存在"目标还需要"的有效采集物时摇晃 icon，
    告诉玩家这一拖完成后会有入账。is-collecting 短动画在共存时通过更高优先级覆盖。 */
 .goal-item.is-incoming .goal-item__icon {
