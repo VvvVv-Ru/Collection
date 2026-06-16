@@ -2,9 +2,12 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Honey Demo Skeleton</title>
-    <link rel="stylesheet" href="./style.css?v=goal-dynamic-20260616-2" />
+    <link rel="stylesheet" href="./style.css?v=20260616-1615" />
   </head>
   <body>
     <main class="app-shell">
@@ -71,14 +74,6 @@
             </div>
           </section>
 
-          <aside class="bee-counter">
-            <div class="bee-counter__frame">
-              <img id="bee-counter-icon" class="bee-counter__icon" src="assets/ui/cursor/cursor-default.png" alt="蜜蜂" />
-            </div>
-            <div class="bee-counter__number">
-              <strong id="bees-left">10</strong>
-            </div>
-          </aside>
         </div>
         <div id="fx-overlay" class="fx-overlay" aria-hidden="true"></div>
         <div id="combo-overlay" class="combo-overlay" aria-hidden="true">
@@ -88,6 +83,15 @@
         </div>
       </div>
     </main>
+
+    <aside class="bee-counter">
+      <div class="bee-counter__frame">
+        <img id="bee-counter-icon" class="bee-counter__icon" src="assets/ui/cursor/cursor-default.png" alt="蜜蜂" />
+      </div>
+      <div class="bee-counter__number">
+        <strong id="bees-left">10</strong>
+      </div>
+    </aside>
 
     <button
       id="bgm-toggle"
@@ -130,6 +134,6 @@
       </div>
     </div>
 
-    <script src="./app.js?v=mini-tutorial-20260616-1"></script>
+    <script src="./app.js?v=20260616-1615"></script>
   </body>
 </html>

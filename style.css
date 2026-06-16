@@ -59,6 +59,10 @@ body::before {
   height: 100vh;
   min-height: 100vh;
   padding: 20px 16px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(20px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
   position: relative;
   z-index: 1;
   overflow: hidden;
@@ -799,7 +803,7 @@ body::before {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 28px;
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%) translateY(18px);
   padding: 10px 18px;
   border-radius: 999px;
@@ -808,16 +812,30 @@ body::before {
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.04em;
+  max-width: min(78vw, 520px);
+  text-align: center;
+  line-height: 1.35;
+  white-space: normal;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
   z-index: 20;
 }
 
+@media (max-width: 560px) {
+  .toast {
+    /* 在手机上把 toast 抬到蜜蜂礼盒上方，避免互相遮挡 */
+    bottom: calc(180px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 32px);
+    font-size: 13px;
+    padding: 8px 14px;
+  }
+}
+
 .bgm-toggle {
   position: fixed;
-  top: 16px;
-  right: 16px;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
   width: 44px;
   height: 44px;
   display: grid;
@@ -1181,17 +1199,20 @@ body.is-dragging-cursor * {
 }
 
 .bee-counter {
-  position: absolute;
-  right: -32px;
-  bottom: 0;
+  /* 已移出 .game-stage（避免被 stage 的 transform 影响位置），
+     直接锚到 viewport 右下；脱离了 stage 的 scale，因此自带一个 scale 维持视觉比例 */
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
   width: 140px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0;
-  z-index: 10;
+  z-index: 30;
   pointer-events: none;
-  transform: scale(1.15);
+  /* 桌面端缩小到原 1.15 的约一半，与棋盘上 hex 的视觉量级一致 */
+  transform: scale(0.6);
   transform-origin: bottom right;
 }
 
@@ -1443,7 +1464,7 @@ body.is-dragging-cursor * {
 
   .game-stage {
     width: 540px;
-    padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   }
 
   .game-stage-viewport {
@@ -1504,9 +1525,34 @@ body.is-dragging-cursor * {
   }
 
   .bee-counter {
-    right: 10px;
-    bottom: env(safe-area-inset-bottom, 0px);
-    width: 120px;
+    /* 手机端改为 fixed，锚到屏幕右下；避免因 game-stage 高度随关卡变化把它带飞到屏幕中间 */
+    position: fixed;
+    right: max(8px, env(safe-area-inset-right, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    left: auto;
+    top: auto;
+    width: 100px;
+    /* 手机端缩放：在原 0.5 基础上放大 20% → 0.6 */
+    transform: scale(0.6);
+    transform-origin: bottom right;
+    z-index: 30;
+  }
+
+  .bee-counter__icon {
+    width: 118%;
+    transform: translate(0, -32px);
+  }
+
+  @keyframes bee-counter-jump {
+    0% { transform: translate(0, -32px) scaleY(1) scaleX(1); }
+    15% { transform: translate(0, -28px) scaleY(0.82) scaleX(1.12); }
+    45% { transform: translate(0, -60px) scaleY(1.08) scaleX(0.94); }
+    75% { transform: translate(0, -32px) scaleY(0.9) scaleX(1.08); }
+    100% { transform: translate(0, -32px) scaleY(1) scaleX(1); }
+  }
+
+  .bee-counter__number {
+    transform: translateY(-32px) scale(1.05);
   }
 
   .bee-counter__number strong {
@@ -1517,8 +1563,8 @@ body.is-dragging-cursor * {
 /* ====== 选关界面（A-PLN-LEVEL-DESIGN-FINAL） ====== */
 .level-select-toggle {
   position: fixed;
-  top: 16px;
-  right: 70px;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  right: calc(max(16px, env(safe-area-inset-right, 0px)) + 54px);
   height: 44px;
   padding: 0 14px;
   border: 2px solid rgba(191, 126, 36, 0.28);
@@ -1664,7 +1710,7 @@ body.is-dragging-cursor * {
     grid-template-columns: repeat(2, 1fr);
   }
   .level-select-toggle {
-    right: 70px;
+    right: calc(max(16px, env(safe-area-inset-right, 0px)) + 54px);
     font-size: 14px;
     padding: 0 12px;
   }

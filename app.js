@@ -402,6 +402,12 @@ const boardMetrics = {
 };
 const boardDisplayScale = 1.7;
 
+// 全局棋盘基准：取最大关卡 LAYOUT_22 的尺寸，所有关卡共用同一 scale，
+// 保证手机上每关的 tile 视觉大小一致（小关会有更多留白，这是预期取舍）。
+const MAX_BOARD_SLOT = 6; // LAYOUT_22 rowSlots 最大列 = 6
+const MAX_BOARD_ROW = 7; // LAYOUT_22 layoutRows 8 行 → row 索引 0..7
+const STAGE_VERTICAL_OVERHEAD = 220; // HUD + gap + padding-bottom 的固定纵向估算
+
 const hasDom = typeof document !== "undefined";
 
 function createTileTypeSummary() {
@@ -2276,18 +2282,35 @@ function applyResponsiveGameScale() {
     return;
   }
 
-  const stageWidth = dom.gameStage.offsetWidth;
-  const stageHeight = dom.gameStage.offsetHeight;
+  // 用最大关卡 LAYOUT_22 的棋盘尺寸作为统一基准，所有关卡共用同一 scale，
+  // 保证手机上每关的 tile 视觉大小完全一致。
+  const refBoardNativeWidth =
+    boardMetrics.leftPadding * 2 + MAX_BOARD_SLOT * boardMetrics.xUnit + 56;
+  const refBoardNativeHeight =
+    boardMetrics.topPadding * 2 + MAX_BOARD_ROW * boardMetrics.yUnit + 96;
+  const refBoardWidth = refBoardNativeWidth * boardDisplayScale; // ≈ 891
+  const refBoardHeight = refBoardNativeHeight * boardDisplayScale; // ≈ 1683
+
+  const refStageWidth = Math.max(dom.gameStage.offsetWidth, refBoardWidth);
+  const refStageHeight = refBoardHeight + STAGE_VERTICAL_OVERHEAD;
+
   const availableWidth = dom.gameStageViewport.clientWidth;
   const availableHeight = dom.gameStageViewport.clientHeight;
 
-  if (!stageWidth || !stageHeight || !availableWidth || !availableHeight) {
+  if (!refStageWidth || !refStageHeight || !availableWidth || !availableHeight) {
     return;
   }
 
-  const scale = Math.min(1, availableWidth / stageWidth, availableHeight / stageHeight);
+  const scale = Math.min(1, availableWidth / refStageWidth, availableHeight / refStageHeight);
   const isMobileViewport = window.matchMedia("(max-width: 560px)").matches;
-  const topOffset = isMobileViewport ? 0 : Math.max(0, (availableHeight - stageHeight * scale) / 2);
+  // 手机端：把舞台略偏上居中；桌面端保持竖向居中。
+  let topOffset;
+  if (isMobileViewport) {
+    const slack = Math.max(0, availableHeight - refStageHeight * scale);
+    topOffset = Math.max(0, slack * 0.45);
+  } else {
+    topOffset = Math.max(0, (availableHeight - refStageHeight * scale) / 2);
+  }
   dom.gameStage.style.top = `${topOffset}px`;
   dom.gameStage.style.transform = `translateX(-50%) scale(${scale})`;
 
