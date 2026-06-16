@@ -141,22 +141,11 @@ const levelConfigs = [
     intro: "粉色花是苹果树。先采开花期得苹果花，下一轮再回来采果实。",
     designerNotes: { expectedRunsToWin: 4, expectedFailRate: 0.15, kishoStage: "Twist", rhythm: "rise" },
   },
-  {
-    // L4：第 1 章 Conclude。鸟密度跳到 3，配 2 棵 apple。
-    id: "L4", name: "第 4 关 · 第一章考核", chapter: 1, layout: LAYOUT_16,
-    tileTypeRatioBaseCounts: { enemy: 3, flower: 9, flower_yellow: 0, flower_red: 0, apple_tree: 2, tulip: 0, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
-    initialBeeCount: 6,
-    goalTargets: { flower: 10, flower_yellow: 0, flower_red: 0, apple: 1, appleFruit: 1, tulip: 0, tulip_white: 0 },
-    enemyPlacementRule: "default",
-    hooks: "综合：花 + 苹果 + 3 只鸟",
-    intro: "鸟更多了；记得用边界数字提前判断敌人位置。",
-    designerNotes: { expectedRunsToWin: 6, expectedFailRate: 0.35, kishoStage: "Conclude", rhythm: "peak" },
-  },
 
   // ===== 中场息期 1 =====
   {
     // L5 rest1：零敌人 + 蜂巢首次引入。纯白花海回血。
-    id: "L5", name: "第 5 关 · 休息日 · 蜂巢初识", chapter: 0, layout: LAYOUT_13,
+    id: "L4", name: "第 4 关 · 休息日 · 蜂巢初识", chapter: 0, layout: LAYOUT_13,
     tileTypeRatioBaseCounts: { enemy: 0, flower: 8, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 0, bee: 4, caterpillar: 0, empty: 1 },
     initialBeeCount: 2,
     goalTargets: { flower: 16, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 0 },
@@ -169,7 +158,7 @@ const levelConfigs = [
   // ===== 第 2 章：紫郁 → 蜂巢主线 → 黄红颜色变奏 → appleFruit 首启用 =====
   {
     // L6：紫郁金香登场。1 只鸟 + 教学关 exclude-shortest。
-    id: "L6", name: "第 6 关 · 郁金香登场", chapter: 2, layout: LAYOUT_16,
+    id: "L5", name: "第 5 关 · 郁金香登场", chapter: 2, layout: LAYOUT_16,
     tileTypeRatioBaseCounts: { enemy: 1, flower: 10, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 2, tulip_white: 0, bee: 0, caterpillar: 0, empty: 3 },
     initialBeeCount: 7,
     goalTargets: { flower: 8, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 2, tulip_white: 0 },
@@ -179,19 +168,8 @@ const levelConfigs = [
     designerNotes: { expectedRunsToWin: 4, expectedFailRate: 0.1, kishoStage: "Introduce", rhythm: "valley" },
   },
   {
-    // L7：Kishō Train——蜂巢上主线，13 格小盘低压力学储蓄。
-    id: "L7", name: "第 7 关 · 蜂巢主线", chapter: 2, layout: LAYOUT_13,
-    tileTypeRatioBaseCounts: { enemy: 1, flower: 7, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 0, bee: 1, caterpillar: 0, empty: 4 },
-    initialBeeCount: 7,
-    goalTargets: { flower: 6, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 0 },
-    enemyPlacementRule: "exclude-shortest-safe-path",
-    hooks: "训练：蜂巢成为主线资源",
-    intro: "盘面更小，鸟只 1 只。多绕路 2 次经过蜂巢，把蜜蜂数攒起来。",
-    designerNotes: { expectedRunsToWin: 4, expectedFailRate: 0.15, kishoStage: "Train", rhythm: "rise" },
-  },
-  {
     // L8：Twist——黄花 + 红花颜色变奏，与紫郁同台。
-    id: "L8", name: "第 8 关 · 黄红颜色变奏", chapter: 2, layout: LAYOUT_16,
+    id: "L6", name: "第 6 关 · 黄红颜色变奏", chapter: 2, layout: LAYOUT_16,
     tileTypeRatioBaseCounts: { enemy: 2, flower: 4, flower_yellow: 3, flower_red: 3, apple_tree: 0, tulip: 2, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
     initialBeeCount: 6,
     goalTargets: { flower: 4, flower_yellow: 3, flower_red: 3, apple: 0, appleFruit: 0, tulip: 2, tulip_white: 0 },
@@ -202,7 +180,7 @@ const levelConfigs = [
   },
   {
     // L9：第 2 章 Conclude——appleFruit 桶首次启用。
-    id: "L9", name: "第 9 关 · 第二章考核 · 果实初采", chapter: 2, layout: LAYOUT_19,
+    id: "L7", name: "第 7 关 · 第二章考核 · 果实初采", chapter: 2, layout: LAYOUT_19,
     tileTypeRatioBaseCounts: { enemy: 3, flower: 9, flower_yellow: 0, flower_red: 0, apple_tree: 2, tulip: 3, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
     initialBeeCount: 5,
     goalTargets: { flower: 10, flower_yellow: 0, flower_red: 0, apple: 1, appleFruit: 1, tulip: 3, tulip_white: 0 },
@@ -215,7 +193,7 @@ const levelConfigs = [
   // ===== 中场息期 2 =====
   {
     // L10 rest2：郁金香循环演示，零敌人。
-    id: "L10", name: "第 10 关 · 休息日 · 郁金香田", chapter: 0, layout: LAYOUT_16,
+    id: "L8", name: "第 8 关 · 休息日 · 郁金香田", chapter: 0, layout: LAYOUT_16,
     tileTypeRatioBaseCounts: { enemy: 0, flower: 7, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 6, tulip_white: 0, bee: 1, caterpillar: 0, empty: 2 },
     initialBeeCount: 8,
     goalTargets: { flower: 5, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 4, tulip_white: 0 },
@@ -228,7 +206,7 @@ const levelConfigs = [
   // ===== 第 3 章：青虫 → 白郁 → 22 格综合 → 远端 Conclude =====
   {
     // L11：青虫首引。13 格小盘看清吃花机制。
-    id: "L11", name: "第 11 关 · 青虫登场", chapter: 3, layout: LAYOUT_13,
+    id: "L9", name: "第 9 关 · 青虫登场", chapter: 3, layout: LAYOUT_13,
     tileTypeRatioBaseCounts: { enemy: 1, flower: 7, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 0, bee: 0, caterpillar: 1, empty: 4 },
     initialBeeCount: 7,
     goalTargets: { flower: 6, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 0 },
@@ -239,7 +217,7 @@ const levelConfigs = [
   },
   {
     // L12：白郁金香登场，与青虫同台。
-    id: "L12", name: "第 12 关 · 白色郁金香", chapter: 3, layout: LAYOUT_16,
+    id: "L10", name: "第 10 关 · 白色郁金香", chapter: 3, layout: LAYOUT_16,
     tileTypeRatioBaseCounts: { enemy: 2, flower: 8, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 1, bee: 0, caterpillar: 1, empty: 4 },
     initialBeeCount: 6,
     goalTargets: { flower: 6, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 2 },
@@ -250,7 +228,7 @@ const levelConfigs = [
   },
   {
     // L13：22 格大盘首秀 + 多机制综合（青虫 + 白郁 + 紫郁 + 苹果）。
-    id: "L13", name: "第 13 关 · 大盘综合", chapter: 3, layout: LAYOUT_22,
+    id: "L11", name: "第 11 关 · 大盘综合", chapter: 3, layout: LAYOUT_22,
     tileTypeRatioBaseCounts: { enemy: 3, flower: 11, flower_yellow: 0, flower_red: 0, apple_tree: 1, tulip: 2, tulip_white: 1, bee: 0, caterpillar: 1, empty: 3 },
     initialBeeCount: 6,
     goalTargets: { flower: 10, flower_yellow: 0, flower_red: 0, apple: 1, appleFruit: 0, tulip: 2, tulip_white: 1 },
@@ -261,7 +239,7 @@ const levelConfigs = [
   },
   {
     // L14：第 3 章 Conclude——远端鸟群聚集 + appleFruit 加码。
-    id: "L14", name: "第 14 关 · 第三章考核 · 远端鸟群", chapter: 3, layout: LAYOUT_22,
+    id: "L12", name: "第 12 关 · 第三章考核 · 远端鸟群", chapter: 3, layout: LAYOUT_22,
     tileTypeRatioBaseCounts: { enemy: 4, flower: 10, flower_yellow: 0, flower_red: 0, apple_tree: 2, tulip: 3, tulip_white: 1, bee: 0, caterpillar: 1, empty: 1 },
     initialBeeCount: 5,
     goalTargets: { flower: 10, flower_yellow: 0, flower_red: 0, apple: 2, appleFruit: 1, tulip: 3, tulip_white: 1 },
@@ -274,7 +252,7 @@ const levelConfigs = [
   // ===== 伪 rest =====
   {
     // L15 伪 rest：鸟 2 + 蜂 7 + 多花密集，制造"以为通关了"心流陷阱。
-    id: "L15", name: "第 15 关 · 伪休息日", chapter: 0, layout: LAYOUT_22,
+    id: "L13", name: "第 13 关 · 伪休息日", chapter: 0, layout: LAYOUT_22,
     tileTypeRatioBaseCounts: { enemy: 2, flower: 8, flower_yellow: 2, flower_red: 2, apple_tree: 1, tulip: 2, tulip_white: 1, bee: 1, caterpillar: 0, empty: 3 },
     initialBeeCount: 7,
     goalTargets: { flower: 6, flower_yellow: 2, flower_red: 2, apple: 1, appleFruit: 0, tulip: 2, tulip_white: 1 },
@@ -287,9 +265,9 @@ const levelConfigs = [
   // ===== 终局 =====
   {
     // L16 climax：8 鸟 + 全机制聚合 + far-cluster。
-    id: "L16", name: "第 16 关 · 终局", chapter: 3, layout: LAYOUT_22,
-    tileTypeRatioBaseCounts: { enemy: 8, flower: 3, flower_yellow: 2, flower_red: 2, apple_tree: 2, tulip: 1, tulip_white: 1, bee: 1, caterpillar: 1, empty: 1 },
-    initialBeeCount: 5,
+    id: "L14", name: "第 14 关 · 终局", chapter: 3, layout: LAYOUT_22,
+    tileTypeRatioBaseCounts: { enemy: 8, flower: 3, flower_yellow: 2, flower_red: 2, apple_tree: 2, tulip: 1, tulip_white: 1, bee: 2, caterpillar: 1, empty: 0 },
+    initialBeeCount: 7,
     goalTargets: { flower: 3, flower_yellow: 2, flower_red: 2, apple: 2, appleFruit: 2, tulip: 1, tulip_white: 1 },
     enemyPlacementRule: "far-from-start-then-cluster",
     hooks: "终局：8 只鸟 + 全机制",
@@ -341,6 +319,7 @@ const tileAssetMap = {
   tulip_white: "./assets/tiles/tile-empty.png",
   bee: "./assets/tiles/bee_01.png?v=bee-20260616-1",
   caterpillar: "./assets/tiles/tile-empty.png",
+  fertilizer: "./assets/tiles/tile-empty.png",
 };
 const threatEdgeAssetMap = {
   left: "./assets/tiles/tile-edge-left.png",
@@ -389,6 +368,8 @@ const beeStageAssetMap = {
 const flyBeeAsset = "./assets/ui/cursor/cursor-default.png";
 // A-PLN-CATERPILLAR-01：青虫地块前景资源（双层结构，与 flower / tulip 同套路）
 const caterpillarOverlayAsset = "./assets/tiles/insects_01.png";
+// A-PLN-FERTILIZER-01：鸡吃虫后留下的粪便前景资源（双层结构，与 caterpillar 同套路）
+const fertilizerOverlayAsset = "./assets/tiles/fertilizer_01.png";
 const enemyOverlayAsset = "./assets/tiles/Bird_01.png?v=enemy-20260613-1";
 let enemyOverlayDisplayAsset = enemyOverlayAsset;
 const collectFeedbackConfig = {
@@ -416,6 +397,7 @@ function getFlightAssetForType(type) {
   if (type === "apple_tree_fruit") return appleFruitFlyAsset;
   if (type === "bee_reward") return flyBeeAsset;
   if (type === "caterpillar_jump") return caterpillarOverlayAsset;
+  if (type === "enemy_eat_jump") return enemyOverlayAsset;
   if (type === "flower_yellow") return flowerYellowFlyAsset;
   if (type === "flower_red") return flowerRedFlyAsset;
   if (type === "tulip_white") return tulipWhiteFlyAsset;
@@ -1544,6 +1526,17 @@ function stopFlowerFlightLoop() {
 
 function clearActiveFlowerFlights() {
   feedbackState.activeFlights.forEach((flight) => {
+    // A-PLN-FERTILIZER-01 / CATERPILLAR-01：跳跃类飞行中断时仍要把目标格状态落定，
+    // 否则会出现"鸡跳到一半被下一轮拖拽抹掉，虫子永远不变粪便"的 bug。
+    if (flight.type === "caterpillar_jump" || flight.type === "enemy_eat_jump") {
+      try {
+        flight.onLand?.();
+      } catch (err) {
+        if (typeof console !== "undefined") {
+          console.warn("[clearActiveFlowerFlights] onLand 异常", err);
+        }
+      }
+    }
     flight.element.remove();
   });
   feedbackState.activeFlights.clear();
@@ -1990,6 +1983,12 @@ function finishFlowerFlight(flightId) {
     return;
   }
 
+  if (flight.type === "enemy_eat_jump") {
+    // A-PLN-FERTILIZER-01：小鸡扑食落地，触发目标格 → fertilizer + 粪便动效
+    flight.onLand?.();
+    return;
+  }
+
   commitGoalArrival(flight.type);
   playGoalCollectFeedback(flight.type);
   playCollectSound();
@@ -2286,6 +2285,7 @@ function isSafeTileType(type) {
     type === "tulip_white" ||
     type === "bee" ||
     type === "caterpillar" ||
+    type === "fertilizer" ||
     type === "empty"
   );
 }
@@ -2585,6 +2585,10 @@ function getTileTypeLabel(type) {
     return "青虫";
   }
 
+  if (type === "fertilizer") {
+    return "粪便";
+  }
+
   if (type === "empty") {
     return "安全空格";
   }
@@ -2633,6 +2637,10 @@ function getSafeTileOverlayMarkup(tileState) {
 
   if (tileState.type === "caterpillar") {
     return `<img class="tile__image tile__image--layer tile__image--caterpillar" src="${caterpillarOverlayAsset}" alt="" />`;
+  }
+
+  if (tileState.type === "fertilizer") {
+    return `<img class="tile__image tile__image--layer tile__image--fertilizer" src="${fertilizerOverlayAsset}" alt="" />`;
   }
 
   return "";
@@ -3217,7 +3225,10 @@ function computeTileInnerSignature(tile) {
   const visibleDangerCount = getVisibleDangerCount(tile.id);
   const tileAsset = getTileAsset(state);
   const stageCountdown = getAppleTreeStageCountdown(state);
-  // 内层结构受这些字段影响：revealed/type/growthStage/asset/flipping/dangerCount/stageCountdown/id
+  // 红色描边依赖邻居 enemy 的 revealed 状态——必须把它纳入签名，
+  // 否则邻居鸟被翻开后本格自身字段未变，innerHTML 不会重写，旧的红边 <img> 残留。
+  const threatEdgesSig = isRevealed ? getThreatEdgeDirections(state).join(",") : "";
+  // 内层结构受这些字段影响：revealed/type/growthStage/asset/flipping/dangerCount/stageCountdown/id/threatEdges
   return [
     tile.id,
     isRevealed ? 1 : 0,
@@ -3227,6 +3238,7 @@ function computeTileInnerSignature(tile) {
     isFlipping ? 1 : 0,
     visibleDangerCount === null ? "" : visibleDangerCount,
     stageCountdown === null ? "" : stageCountdown,
+    threatEdgesSig,
   ].join("|");
 }
 
@@ -3877,6 +3889,74 @@ function spawnCaterpillarJump(sourceTileId, targetTileId, onLand) {
   ensureFlightLoop();
 }
 
+// A-PLN-FERTILIZER-01：小鸡扑食青虫的抛物线跳跃
+// 与青虫跳跃同管线，仅素材换 enemyOverlayAsset、轨迹更快更扁
+function spawnEnemyEatJump(sourceTileId, targetTileId, onLand) {
+  if (!hasDom || !dom?.fxOverlay) {
+    onLand?.();
+    return;
+  }
+
+  let startPoint = getTileFlightOrigin(sourceTileId);
+  let endPoint = getTileFlightOrigin(targetTileId);
+
+  if (!startPoint || !endPoint) {
+    renderBoard();
+    startPoint = startPoint || getTileFlightOrigin(sourceTileId);
+    endPoint = endPoint || getTileFlightOrigin(targetTileId);
+  }
+
+  if (!startPoint || !endPoint) {
+    onLand?.();
+    return;
+  }
+
+  const dx = endPoint.x - startPoint.x;
+  const dy = endPoint.y - startPoint.y;
+  const midX = startPoint.x + dx * 0.5;
+  // 鸡扑食：弧线略低于青虫跳跃，更直接的扑击感（约 44–72px）
+  const arcHeight = Math.min(72, Math.max(44, Math.abs(dx) * 0.15 + Math.abs(dy) * 0.15));
+  const controlPoint = {
+    x: midX,
+    y: Math.min(startPoint.y, endPoint.y) - arcHeight,
+  };
+
+  const element = createFlowerFlightElement("enemy_eat_jump");
+  element.style.transform = `translate(${startPoint.x}px, ${startPoint.y}px) translate(-50%, -50%) scale(0.95)`;
+  dom.fxOverlay.appendChild(element);
+
+  const flightId = ++feedbackState.flightCounter;
+  feedbackState.activeFlights.set(flightId, {
+    element,
+    start: startPoint,
+    control: controlPoint,
+    end: endPoint,
+    startTime: getNow(),
+    duration: 480,
+    // 扑击：-6° → +6°，比青虫更稳
+    rotationStart: -6,
+    rotationDelta: 12,
+    type: "enemy_eat_jump",
+    onLand,
+  });
+  ensureFlightLoop();
+}
+
+// A-PLN-FERTILIZER-01：粪便落地效果（复用 caterpillar squash 节奏，独立 class 便于将来差异化）
+function triggerFertilizerDrop(tileId) {
+  if (!hasDom || !dom?.board) return;
+  scheduleFeedback(() => {
+    const el = dom.board.querySelector(`[data-tile-id="${tileId}"]`);
+    if (!el) return;
+    el.classList.remove("tile--fertilizer-drop");
+    void el.offsetWidth;
+    el.classList.add("tile--fertilizer-drop");
+    scheduleFeedback(() => {
+      el.classList.remove("tile--fertilizer-drop");
+    }, 260);
+  }, 0);
+}
+
 // 触发目标 tile 的着陆压扁动效
 function triggerCaterpillarSquash(tileId) {
   if (!hasDom || !dom?.board) return;
@@ -3906,48 +3986,192 @@ function triggerCaterpillarSquash(tileId) {
 //  - 视觉：复用 triggerTileFlip 给两个互换格各做一次翻牌闪现
 function runEnemyMovementsAfterRound() {
   // —— 1. 同步快照 ——
-  const moves = []; // { enemyId, targetId }
+  // A-PLN-FERTILIZER-01（全场版）：只要盘面上有任意 revealed caterpillar，
+  // 所有鸡都会优先扑食——不再限制相邻。每只虫子只能被吃一次，按 enemyId 升序认领；
+  // 认领不到虫子的鸡退化为原"和 safe 邻居换位"逻辑。
+  const eatMoves = []; // { enemyId, targetId }  —— 吃虫
+  const swapMoves = []; // { enemyId, targetId }  —— 换位
   const skippedNoNeighbor = [];
 
-  tiles.forEach((tile) => {
-    const state = gameState.tileStateMap[tile.id];
-    if (!state || !state.revealed || state.type !== "enemy") return;
+  // 全场青虫池（已揭示）
+  const caterpillarPool = tiles
+    .filter((t) => {
+      const s = gameState.tileStateMap[t.id];
+      return s && s.revealed && s.type === "caterpillar";
+    })
+    .map((t) => t.id);
 
-    const vegNeighbors = adjacencyMap[tile.id].filter((nid) => {
+  // 鸡列表（已揭示），按 ID 升序优先扑虫
+  // A-PLN-FERTILIZER-01（全场版）：仅已揭示的鸡参与扑虫，隐藏的鸡不动；
+  // 同理虫子也需 revealed。这意味着玩家必须先把鸡和虫都翻开（如踩鸡失败一次或换位机制揭出），
+  // 规则才会触发。
+  const enemyTiles = tiles
+    .filter((t) => {
+      const s = gameState.tileStateMap[t.id];
+      return s && s.revealed && s.type === "enemy";
+    })
+    .map((t) => t.id)
+    .sort((a, b) => a.localeCompare(b));
+
+  // 诊断日志：在 console / event log 留痕，方便排查"为什么没扑虫"
+  if (caterpillarPool.length > 0 || enemyTiles.length > 0) {
+    const allRevealedCaterpillars = tiles
+      .filter((t) => gameState.tileStateMap[t.id]?.type === "caterpillar")
+      .map((t) => ({ id: t.id, revealed: !!gameState.tileStateMap[t.id]?.revealed }));
+    const allEnemies = tiles
+      .filter((t) => gameState.tileStateMap[t.id]?.type === "enemy")
+      .map((t) => ({ id: t.id, revealed: !!gameState.tileStateMap[t.id]?.revealed }));
+    logEvent("鸡扑虫检查", {
+      revealedEnemies: enemyTiles,
+      revealedCaterpillars: [...caterpillarPool],
+      allEnemies,
+      allCaterpillars: allRevealedCaterpillars,
+    });
+    if (typeof console !== "undefined") {
+      console.log("[鸡扑虫检查]", {
+        revealedEnemies: enemyTiles,
+        revealedCaterpillars: [...caterpillarPool],
+        allEnemies,
+        allCaterpillars: allRevealedCaterpillars,
+      });
+    }
+  }
+
+  // 阶段 A：按 ID 顺序认领虫子
+  const unclaimedEnemies = [];
+  enemyTiles.forEach((enemyId) => {
+    if (caterpillarPool.length === 0) {
+      unclaimedEnemies.push(enemyId);
+      return;
+    }
+    // 从池里随机抽一只虫（"不管多远"——无距离权重）
+    const idx = Math.floor(Math.random() * caterpillarPool.length);
+    const targetId = caterpillarPool.splice(idx, 1)[0];
+    eatMoves.push({ enemyId, targetId });
+  });
+
+  // 阶段 B：没抢到虫子的鸡退化为换位
+  unclaimedEnemies.forEach((enemyId) => {
+    const neighbors = adjacencyMap[enemyId];
+    const swapNeighbors = neighbors.filter((nid) => {
       const ns = gameState.tileStateMap[nid];
-      // 小鸡只能跟"已经翻开的"安全植被格交换
-      return ns && ns.revealed && isSafeTileType(ns.type);
+      // 小鸡换位：只挑"已揭示的 safe 格"，但排除 fertilizer（粪便保留独立）
+      return ns && ns.revealed && isSafeTileType(ns.type) && ns.type !== "fertilizer";
     });
 
-    if (vegNeighbors.length === 0) {
-      skippedNoNeighbor.push(tile.id);
+    if (swapNeighbors.length === 0) {
+      skippedNoNeighbor.push(enemyId);
       return;
     }
 
-    const targetId = vegNeighbors[Math.floor(Math.random() * vegNeighbors.length)];
-    moves.push({ enemyId: tile.id, targetId });
+    const targetId = swapNeighbors[Math.floor(Math.random() * swapNeighbors.length)];
+    swapMoves.push({ enemyId, targetId });
   });
 
-  if (moves.length === 0 && skippedNoNeighbor.length === 0) {
+  if (
+    eatMoves.length === 0 &&
+    swapMoves.length === 0 &&
+    skippedNoNeighbor.length === 0
+  ) {
     return;
   }
 
-  // 按 enemyId 升序，保证结算顺序确定
-  moves.sort((a, b) => a.enemyId.localeCompare(b.enemyId));
+  // eatMoves 已按 enemyId 顺序入列；swap 也保序
+  swapMoves.sort((a, b) => a.enemyId.localeCompare(b.enemyId));
 
   const flipTileSet = new Set();
-  const appliedMoves = [];
+  const appliedSwapMoves = [];
+  const appliedEatMoves = [];
   const skippedConflict = [];
+  const skippedEatConflict = [];
 
-  // —— 2. 逐只结算 ——
-  moves.forEach(({ enemyId, targetId }) => {
+  // —— 2a. 先结算"吃虫"——
+  // 鸡格立即变 empty（清生长字段），目标虫格在飞行落地回调里变 fertilizer
+  eatMoves.forEach(({ enemyId, targetId }) => {
     const enemyState = gameState.tileStateMap[enemyId];
     const targetState = gameState.tileStateMap[targetId];
     if (!enemyState || !targetState) return;
 
-    // 复查：目标格此刻是否仍是"已揭示的植被"？若被先动的小鸡抢占（已变 enemy）
-    // 或后续机制把 revealed 翻回 false，都跳过
-    if (!targetState.revealed || !isSafeTileType(targetState.type)) {
+    // 冲突复查：目标虫此刻仍是 caterpillar 才执行
+    if (!targetState.revealed || targetState.type !== "caterpillar") {
+      skippedEatConflict.push({ enemyId, targetId });
+      return;
+    }
+
+    // 鸡格立即变 empty（鸡已起跳/扑出）
+    enemyState.type = "empty";
+    enemyState.growthStage = null;
+    enemyState.pendingFruit = false;
+    enemyState.fruitRoundCount = 0;
+    enemyState.pendingReBloom = false;
+
+    appliedEatMoves.push({ from: enemyId, to: targetId });
+    flipTileSet.add(enemyId);
+
+    // A-PLN-FERTILIZER-01：虫格 type → fertilizer 必须**同步**执行，
+    // 否则紧接着的 runCaterpillarMovementsAfterRound 会把这只虫当成可移动目标，
+    // 让虫子起跳"复活"到别的植被格，造成"粪便 + 虫子同时存在"的 bug。
+    // onLand 只负责视觉收尾（翻牌闪现 / 粪便淡入 / 全盘 dangerCount 重算）。
+    const prevTargetType = targetState.type;
+    targetState.type = "fertilizer";
+    targetState.growthStage = null;
+    targetState.pendingFruit = false;
+    targetState.fruitRoundCount = 0;
+    targetState.pendingReBloom = false;
+
+    if (typeof console !== "undefined") {
+      console.log("[鸡扑虫] 发射飞行 + 虫格同步变粪便", {
+        enemyId,
+        targetId,
+        prevTargetType,
+        newTargetType: targetState.type,
+      });
+    }
+
+    // 发射扑食飞行；落地回调只做视觉收尾
+    spawnEnemyEatJump(enemyId, targetId, () => {
+      const target = gameState.tileStateMap[targetId];
+      if (!target) {
+        if (typeof console !== "undefined") {
+          console.warn("[鸡扑虫] onLand：target 不存在", { targetId });
+        }
+        return;
+      }
+
+      // 全盘重算 dangerCount（鸡格已 empty，可能影响邻居）
+      tiles.forEach((t) => {
+        const ts = gameState.tileStateMap[t.id];
+        if (!ts) return;
+        ts.dangerCount = adjacencyMap[t.id].filter(
+          (nid) => gameState.tileStateMap[nid]?.type === "enemy"
+        ).length;
+        if (gameState.roundConfig) {
+          gameState.roundConfig[t.id] = ts.type;
+        }
+      });
+
+      triggerTileFlip(targetId);
+      triggerFertilizerDrop(targetId);
+      triggerRenderOnly();
+    });
+
+    // 源格翻牌闪现（鸡消失）
+    triggerTileFlip(enemyId);
+  });
+
+  // —— 2b. 再结算"换位"——
+  swapMoves.forEach(({ enemyId, targetId }) => {
+    const enemyState = gameState.tileStateMap[enemyId];
+    const targetState = gameState.tileStateMap[targetId];
+    if (!enemyState || !targetState) return;
+
+    // 复查：目标格此刻是否仍是"已揭示的 safe 非 fertilizer"？若被先动的鸡抢占（已变 enemy）
+    // 或被其它机制改写都跳过
+    if (
+      !targetState.revealed ||
+      !isSafeTileType(targetState.type) ||
+      targetState.type === "fertilizer"
+    ) {
       skippedConflict.push({ enemyId, targetId });
       return;
     }
@@ -3979,10 +4203,12 @@ function runEnemyMovementsAfterRound() {
 
     flipTileSet.add(enemyId);
     flipTileSet.add(targetId);
-    appliedMoves.push({ from: enemyId, to: targetId });
+    appliedSwapMoves.push({ from: enemyId, to: targetId });
   });
 
   // —— 3. 全盘重算 dangerCount + 同步 roundConfig（仅供日志快照） ——
+  // 注：A-PLN-FERTILIZER-01 — 虫格 type 已在发射飞行时同步切到 fertilizer，
+  // 所以紧跟着的 runCaterpillarMovementsAfterRound 不会再把这只虫当成可移动对象
   tiles.forEach((tile) => {
     const state = gameState.tileStateMap[tile.id];
     if (!state) return;
@@ -3999,8 +4225,14 @@ function runEnemyMovementsAfterRound() {
   triggerRenderOnly();
 
   // —— 5. 日志 ——
+  if (appliedEatMoves.length > 0 || skippedEatConflict.length > 0) {
+    logEvent("小鸡吃青虫", {
+      moves: appliedEatMoves,
+      skippedConflict: skippedEatConflict,
+    });
+  }
   logEvent("小鸡回合移动", {
-    moves: appliedMoves,
+    moves: appliedSwapMoves,
     skippedNoNeighbor,
     skippedConflict,
   });
@@ -4277,9 +4509,10 @@ function completeRun(outcome) {
       gameState.trailFading = false;
       gameState.trailFail = false;
       triggerRenderOnly();
-      // 先青虫吃作物，再小鸡群移动
-      runCaterpillarMovementsAfterRound();
+      // A-PLN-FERTILIZER-01：先小鸡扑虫（鸡 + 虫双消失留粪便），再让活下来的虫吃植被。
+      // 顺序很关键——若反过来，虫子先起跳后源格变 empty，鸡扑虫的池子会扫不到任何 caterpillar 类型的格子。
       runEnemyMovementsAfterRound();
+      runCaterpillarMovementsAfterRound();
     }, animationDurations.failFlash + animationDurations.trailFade);
     gameState.currentRunVisitedTileIds = new Set();
     gameState.currentRunHarvestedTileIds = new Set();
@@ -4323,9 +4556,9 @@ function completeRun(outcome) {
     }
     queueRoundHoneyReset();
     scheduleTrailFadeOut(0);
-    // 先青虫吃作物，再小鸡群移动
-    runCaterpillarMovementsAfterRound();
+    // A-PLN-FERTILIZER-01：先小鸡扑虫，再让活下来的虫吃植被（顺序见 failure 分支说明）
     runEnemyMovementsAfterRound();
+    runCaterpillarMovementsAfterRound();
     renderAll();
     return { ok: true, reason: outcome, path, nextStartTileId };
   }
@@ -4348,9 +4581,9 @@ function completeRun(outcome) {
     }
     queueRoundHoneyReset();
     scheduleTrailFadeOut(0);
-    // 先青虫吃作物，再小鸡群移动
-    runCaterpillarMovementsAfterRound();
+    // A-PLN-FERTILIZER-01：先小鸡扑虫，再让活下来的虫吃植被
     runEnemyMovementsAfterRound();
+    runCaterpillarMovementsAfterRound();
     renderAll();
     return { ok: true, reason: outcome, path, nextStartTileId };
   }
@@ -4365,9 +4598,9 @@ function completeRun(outcome) {
       pendingList: pendingListSnapshot,
     });
     scheduleTrailFadeOut(0);
-    // 先青虫吃作物，再小鸡群移动
-    runCaterpillarMovementsAfterRound();
+    // A-PLN-FERTILIZER-01：先小鸡扑虫，再让活下来的虫吃植被
     runEnemyMovementsAfterRound();
+    runCaterpillarMovementsAfterRound();
   });
 
   renderAll();
