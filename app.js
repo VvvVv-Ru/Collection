@@ -125,6 +125,7 @@ const levelConfigs = [
     initialBeeCount: 6,
     goalTargets: { flower: 4, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 0 },
     enemyPlacementRule: "exclude-shortest-safe-path",
+    enemyFixedTileIds: ["T04"],
     hooks: "认识：撞鸟会让本轮收益清零、扣 1 只蜜蜂",
     intro: "盘上多了一只鸟。隔壁格的数字提醒你它在哪边——绕开它。",
     designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0.1, kishoStage: "Introduce-Bird", rhythm: "valley→rise" },
@@ -309,6 +310,7 @@ let initialBeeCount = 0;
 let goalTargets = { flower: 0, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 0 };
 let honeyGoalTarget = 0;
 let enemyPlacementRule = "default";
+let enemyFixedTileIds = [];
 const initialStatusText = "选择任意已翻开的格子（天敌除外）作为起点，按住滑动。";
 const animationDurations = {
   failFlash: 420,
@@ -598,6 +600,7 @@ function applyLevelConfig(levelIndex) {
   goalTargets = { ...cfg.goalTargets };
   honeyGoalTarget = goalTargets.flower + goalTargets.flower_yellow + goalTargets.flower_red + goalTargets.apple + goalTargets.appleFruit + goalTargets.tulip + goalTargets.tulip_white;
   enemyPlacementRule = cfg.enemyPlacementRule || "default";
+  enemyFixedTileIds = Array.isArray(cfg.enemyFixedTileIds) ? cfg.enemyFixedTileIds.slice() : [];
 
   validateLayoutConfig();
 
@@ -647,29 +650,42 @@ function pickEnemyTileIds(baseCandidates, randomFn) {
   const need = tileTypeCounts.enemy;
   if (need <= 0) return new Set();
 
+  // 固定位置优先：先从 enemyFixedTileIds 取合法项，再用其它规则补足
+  const fixed = new Set();
+  if (enemyFixedTileIds.length > 0) {
+    const candidateSet = new Set(baseCandidates);
+    for (const id of enemyFixedTileIds) {
+      if (fixed.size >= need) break;
+      if (candidateSet.has(id) && !fixed.has(id)) fixed.add(id);
+    }
+    if (fixed.size >= need) return fixed;
+  }
+  const remainingCandidates = baseCandidates.filter((id) => !fixed.has(id));
+  const stillNeed = need - fixed.size;
+
   if (enemyPlacementRule === "exclude-shortest-safe-path") {
     const dist = bfsDistancesFromStart();
     const SAFE_RADIUS = 2;
-    const restricted = baseCandidates.filter((id) => (dist[id] ?? Infinity) > SAFE_RADIUS);
-    if (restricted.length >= need) {
-      return new Set(shuffleArray(restricted, randomFn).slice(0, need));
+    const restricted = remainingCandidates.filter((id) => (dist[id] ?? Infinity) > SAFE_RADIUS);
+    if (restricted.length >= stillNeed) {
+      return new Set([...fixed, ...shuffleArray(restricted, randomFn).slice(0, stillNeed)]);
     }
     console.warn(
-      `[Collection] L${currentLevelIndex + 1} exclude-shortest-safe-path 候选不足(${restricted.length} < ${need})，回退 default`
+      `[Collection] L${currentLevelIndex + 1} exclude-shortest-safe-path 候选不足(${restricted.length} < ${stillNeed})，回退 default`
     );
   } else if (enemyPlacementRule === "far-from-start-then-cluster") {
     const dist = bfsDistancesFromStart();
     const far = shuffleArray(
-      baseCandidates.filter((id) => (dist[id] ?? 0) >= 3),
+      remainingCandidates.filter((id) => (dist[id] ?? 0) >= 3),
       randomFn
     );
     const near = shuffleArray(
-      baseCandidates.filter((id) => (dist[id] ?? 0) < 3),
+      remainingCandidates.filter((id) => (dist[id] ?? 0) < 3),
       randomFn
     );
-    return new Set([...far, ...near].slice(0, need));
+    return new Set([...fixed, ...[...far, ...near].slice(0, stillNeed)]);
   }
-  return new Set(shuffleArray(baseCandidates, randomFn).slice(0, need));
+  return new Set([...fixed, ...shuffleArray(remainingCandidates, randomFn).slice(0, stillNeed)]);
 }
 
 function shuffleArray(items, randomFn = Math.random) {
