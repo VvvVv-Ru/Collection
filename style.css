@@ -303,12 +303,37 @@ body::before {
   transition: transform 0.25s ease;
 }
 
+/* A-PLN-GOAL-INCOMING-01：小白花 icon 之前用 transform: translateX(-12px) 微调位置，
+   会被新的摇晃 / 弹跳动画 transform 吞掉。改成 margin 让 transform 留给动画。 */
 .goal-item[data-goal="flower"] .goal-item__icon {
-  transform: translateX(-12px);
+  margin-left: -12px;
+  margin-right: 12px;
 }
 
 .goal-item.is-collecting .goal-item__icon {
   animation: goal-collect-bounce 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A-PLN-GOAL-INCOMING-01：拖动路径中已存在"目标还需要"的有效采集物时摇晃 icon，
+   告诉玩家这一拖完成后会有入账。is-collecting 短动画在共存时通过更高优先级覆盖。 */
+.goal-item.is-incoming .goal-item__icon {
+  animation: goal-incoming-wobble 0.9s ease-in-out infinite;
+}
+
+.goal-item.is-incoming.is-collecting .goal-item__icon {
+  animation: goal-collect-bounce 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes goal-incoming-wobble {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(8deg);
+  }
 }
 
 .goal-item__burst {

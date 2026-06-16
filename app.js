@@ -2925,6 +2925,36 @@ function renderGoalHUD() {
   dom.goalAppleFruit?.parentElement?.classList.toggle("is-done", afRemain === 0);
   dom.goalTulip?.parentElement?.classList.toggle("is-done", tRemain === 0);
   dom.goalTulipWhite?.parentElement?.classList.toggle("is-done", twRemain === 0);
+
+  // A-PLN-GOAL-INCOMING-01：路径中已经存在"目标还需要"的有效采集物时，
+  // 给对应 goal-item 加 .is-incoming 触发摇晃动画，预告即将入账。
+  // 规则：pendingScoreList 内存在某种 type 的 amount > 0 条目 AND 对应 remain > 0
+  const incoming = {
+    flower: false,
+    flower_yellow: false,
+    flower_red: false,
+    apple: false,
+    appleFruit: false,
+    tulip: false,
+    tulip_white: false,
+  };
+  for (const entry of gameState.pendingScoreList) {
+    if (!entry || !(entry.amount > 0)) continue;
+    if (entry.type === "flower") incoming.flower = true;
+    else if (entry.type === "flower_yellow") incoming.flower_yellow = true;
+    else if (entry.type === "flower_red") incoming.flower_red = true;
+    else if (entry.type === "apple_tree_blossom") incoming.apple = true;
+    else if (entry.type === "apple_tree_fruit") incoming.appleFruit = true;
+    else if (entry.type === "tulip") incoming.tulip = true;
+    else if (entry.type === "tulip_white") incoming.tulip_white = true;
+  }
+  dom.goalFlower?.parentElement?.classList.toggle("is-incoming", incoming.flower && fRemain > 0);
+  dom.goalFlowerYellow?.parentElement?.classList.toggle("is-incoming", incoming.flower_yellow && fyRemain > 0);
+  dom.goalFlowerRed?.parentElement?.classList.toggle("is-incoming", incoming.flower_red && frRemain > 0);
+  dom.goalApple?.parentElement?.classList.toggle("is-incoming", incoming.apple && aRemain > 0);
+  dom.goalAppleFruit?.parentElement?.classList.toggle("is-incoming", incoming.appleFruit && afRemain > 0);
+  dom.goalTulip?.parentElement?.classList.toggle("is-incoming", incoming.tulip && tRemain > 0);
+  dom.goalTulipWhite?.parentElement?.classList.toggle("is-incoming", incoming.tulip_white && twRemain > 0);
 }
 
 // ====== A-PLN-GOAL-DYNAMIC-01：按关目标按需显示 ======
