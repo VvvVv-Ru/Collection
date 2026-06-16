@@ -829,3 +829,44 @@
 - 本轮只做 \`tulip_white\`
 - 其它 11 关只补 0 字段
 - \`Collection/\` 子目录未同步
+---
+
+## B-COD-LEVEL-DESIGN-16
+
+### 实施
+- 来源：`A-PLN.md` `A-PLN-LEVEL-DESIGN-16` 任务卡
+- 改动文件：`app.js` 仅 `levelConfigs[]` 数组与注释
+- 改动范围：`app.js:4-7`（注释更新）+ `app.js:107-302`（`levelConfigs` 12 项 → 16 项）
+- **零结构变更**：未动 layout 拓扑、tile 类型枚举、任何函数；未动 `style.css` / `index.html` / 资源文件
+
+### 16 关字段落地（按 A-PLN.md v3 修订版表格逐字填入）
+- L1 / L2 / L3 / L4 沿用旧 L1-L4 数值
+- L5 改为 rest1 蜂巢初识：13 格 / 0 鸟 / `flower=9, bee=1, empty=3` / bees=8 / goal F=8
+- L6 沿用旧 L6 紫郁登场
+- L7 改为 Train 蜂巢主线：13 格 / 1 鸟 / `flower=7, bee=1, empty=4` / bees=7 / goal F=6
+- L8 改为 Twist 黄红颜色变奏：16 格 / 2 鸟 / `flower=4, fy=3, fr=3, tulip=2, empty=2` / bees=6 / goal F=4,Fy=3,Fr=3,T=2
+- L9 改为 Conclude appleFruit 首启用：19 格 / 3 鸟 / `flower=9, apple=2, tulip=3, empty=2` / bees=5 / goal F=10,A=1,Af=1,T=3
+- L10 沿用旧 L9 rest2 郁金香田
+- L11 新增青虫首引：13 格 / 1 鸟 / `flower=7, caterpillar=1, empty=4` / bees=7 / goal F=6
+- L12 新增白郁登场：16 格 / 2 鸟 / `flower=8, tulip_white=1, caterpillar=1, empty=4` / bees=6 / goal F=6,Tw=2
+- L13 新增 22 格综合：22 格 / 3 鸟 / `flower=11, apple=1, tulip=2, tulip_white=1, caterpillar=1, empty=3` / bees=6 / goal F=10,A=1,T=2,Tw=1
+- L14 新增远端 Conclude：22 格 / 4 鸟 / `flower=10, apple=2, tulip=3, tulip_white=1, caterpillar=1, empty=1` / bees=5 / goal F=10,A=2,Af=1,T=3,Tw=1 / `far-from-start-then-cluster`
+- L15 新增伪 rest：22 格 / 2 鸟 / `flower=8, fy=2, fr=2, apple=1, tulip=2, tulip_white=1, bee=1, empty=3` / bees=7 / goal F=6,Fy=2,Fr=2,A=1,T=2,Tw=1
+- L16 新增 climax：22 格 / 8 鸟 / `flower=3, fy=2, fr=2, apple=2, tulip=1, tulip_white=1, bee=1, caterpillar=1, empty=1` / bees=5 / goal F=3,Fy=2,Fr=2,A=2,Af=2,T=1,Tw=1 / `far-from-start-then-cluster`
+
+### 自检
+- `node --check app.js` ✅
+- `grep -c '^    id: "L' app.js` = 16 ✅
+- 每行 tile 数 sum = layout 总格数（7/9/11/13/16/19/22）已逐行核对 ✅
+- 引用 `levelConfigs.length` 的 13 处全部动态读取，无 hardcoded 12 ✅
+- 唯一遗留字面"12 关"在 line 241——已是新 L12 entry name（白色郁金香），符合预期 ✅
+- `gotoLevel(idx)` debug 入口范围检查 `idx < levelConfigs.length` 已自动适配 ✅
+
+### 范围说明
+- 本轮只动 levelConfigs 数据，不动任何代码逻辑
+- L29/30+ 之前 32 关方案的素材（橘子树、蘑菇、河流）继续保持搁置
+- `Collection/` 子目录未同步
+
+### Handoff
+- 下一步：浏览器跑 L1 → L16 实机回归（intro toast、盘面伸缩、far-cluster 远端聚集、伪 rest 心流陷阱、climax 8 鸟）
+- 阻塞：`expectedRunsToWin` 全部待 `logEvent("level-result")` 真实数据校准

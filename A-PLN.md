@@ -893,3 +893,160 @@
 - 任务 ID：`A-PLN-TULIP-WHITE-01`
 - 当前状态：✅ 已落地
 - 下一步：浏览器跑 L5
+
+---
+
+## 任务卡：16 关关卡曲线（A-PLN-LEVEL-DESIGN-16）
+
+- 任务 ID：`A-PLN-LEVEL-DESIGN-16`
+- 目标：把当前 12 关曲线扩展为 16 关曲线（3 章 + 终章），仅复用现有 9 种地块 + 6 种 layout + 3 种 enemyPlacementRule，**不新增任何机制/素材/地块**
+- 范围：**仅落档设计文档，本轮不动代码**。代码改动后续单独开 `B-COD-LEVEL-DESIGN-16` 任务卡
+
+### 设计约束（与用户拍板）
+- ❌ 不新增 tile type / 不接入未使用素材（橘子树、蘑菇、河流、Bird_01、Stone_01、tree_countdown 全部搁置）
+- ❌ 不新增规则（撞鸟惩罚 / 蜜蜂阈值 / 青虫触发顺序 全部不动）
+- ✅ 只动：每关 `tileTypeRatioBaseCounts` / `goalTargets` / `initialBeeCount` / `layout` / `enemyPlacementRule` / `intro` / `hooks` / `designerNotes`
+
+### NotebookLM 原则锚点（8 条，3 轮查询后定稿）
+本轮使用 notebook：`https://notebooklm.google.com/notebook/60855a98-7731-4fd5-b672-75143c9c458c`（"Game Development - Roguelikes & PCG"）
+
+1. **4C 关卡四要素**（Ed Byrne）：Hooks（独特卖点）/ Flow（无形之手）/ Rhythm（强度变化）/ Difficulty（持续挑战）
+2. **Kishōtenketsu 4 阶段**：Introduce（引入新机制）→ Train（安全环境训练）→ Twist（机制结合产生转折）→ Conclude（综合测试）
+3. **过山车节奏**：波峰波谷必须交替，不能直线上升
+4. **故意打破心流**：极简单关后突然拉升 / 高压关后插入伪 rest
+5. **显性 vs 隐性变量**：显 = 目标数量 / 蜂蜜预算；隐 = 棋盘障碍物 / 颜色种类（颜色越多越难）
+6. **估 8 实际 24**：设计师对难度的直觉不准，须靠真实数据校准
+7. **压力下学不会**：教学关必须用 `exclude-shortest-safe-path`
+8. **Hooks 独特性**：每关必须有别于其他关的独特元素，禁止填充关
+
+### 修订迭代记录
+1. **v1 (32 关版本)**：5 章 + 终章，5 个真 rest，每章 5 关含 Train2 填充关 → 经 notebook 反查发现 Train2 违反 4C Hooks、L27 6 种植被违反隐性变量、终章 3 关连升违反过山车
+2. **v2 (16 关压缩)**：3 章 + 终章，每章 4 关回归 Kishō 4 阶段，砍 Train2，rest 改 2 真 + 1 伪 → 经 notebook 二次反查发现 L7 同关引 2 新东西、L14 同关引 3 新东西、L15 伪 rest 鸟 3 偏多、L13 9 类元素塞满
+3. **v3 (16 关 M1-M5 修订版，本卡定稿)**：章 2 顺序重排（紫郁/蜂巢/黄红/综合）、L13 提前到 22 格综合、L14 砍 appleFruit 加码量、L15 鸟降至 2、L13 元素精简到 7 类
+
+### 16 关结构总览
+```
+L1-L4   章1 入门：拖动→鸟→苹果→章末综合
+L5      rest1：白花海回血 + 蜂巢初识
+L6-L9   章2 紫郁+蜂巢+三色：紫郁→蜂巢→黄红→综合(appleFruit首启)
+L10     rest2：郁金香 sprout 循环演示
+L11-L14 章3 青虫+白郁+大盘：青虫→白郁→22格综合→远端Conclude
+L15     伪 rest：鸟 2 + 蜂 7 + 多花密集（"以为通关了"心流陷阱）
+L16     climax：8 鸟 + far-cluster + 全机制
+```
+
+合计：12 主线 + 2 真 rest + 1 伪 rest + 1 climax = **16 关**
+
+### 16 关完整数值表
+
+字段缩写：`E`=enemy, `F`=flower 白, `Fy`=yellow, `Fr`=red, `A`=apple, `T`=tulip 紫, `Tw`=tulip_white, `B`=bee, `C`=caterpillar, `_`=empty。
+Goal 缩写同上 + `Af`=appleFruit。
+EP = enemyPlacementRule：`d`=default, `x`=exclude-shortest-safe-path, `f`=far-from-start-then-cluster。
+
+| L | 章 | 盘 | E | F | Fy | Fr | A | T | Tw | B | C | _ | bees | Goal | EP | Hook |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1  | 1 | 7  | 0 | 5 |   |   |   |   |   |   |   | 2 | 6 | F=4 | d | Intro 拖动 |
+| 2  | 1 | 9  | 1 | 6 |   |   |   |   |   |   |   | 2 | 6 | F=4 | x | Intro 鸟 |
+| 3  | 1 | 11 | 1 | 7 |   |   | 1 |   |   |   |   | 2 | 6 | F=5,A=1 | x | Twist 苹果三态 |
+| 4  | 1 | 16 | 3 | 9 |   |   | 2 |   |   |   |   | 2 | 6 | F=10,A=1 | d | Conclude 章1 |
+| 5  | r | 13 | 0 | 9 |   |   |   |   |   | 1 |   | 3 | 8 | F=8 | d | rest1 蜂巢初识 |
+| 6  | 2 | 16 | 1 | 10|   |   |   | 2 |   |   |   | 3 | 7 | F=8,T=2 | x | Intro 紫郁 |
+| 7  | 2 | 13 | 1 | 7 |   |   |   |   |   | 1 |   | 4 | 7 | F=6 | x | Train 蜂巢主线 |
+| 8  | 2 | 16 | 2 | 4 | 3 | 3 |   | 2 |   |   |   | 2 | 6 | F=4,Fy=3,Fr=3,T=2 | d | Twist 黄+红颜色变奏 |
+| 9  | 2 | 19 | 3 | 9 |   |   | 2 | 3 |   |   |   | 2 | 5 | F=10,A=1,Af=1,T=3 | d | Conclude 章2 + appleFruit 首启用 |
+| 10 | r | 16 | 0 | 7 |   |   |   | 6 |   | 1 |   | 2 | 8 | F=5,T=4 | d | rest2 郁金香循环 |
+| 11 | 3 | 13 | 1 | 7 |   |   |   |   |   |   | 1 | 4 | 7 | F=6 | x | Intro 青虫 |
+| 12 | 3 | 16 | 2 | 8 |   |   |   |   | 1 |   | 1 | 4 | 6 | F=6,Tw=2 | x | Twist 白郁 |
+| 13 | 3 | 22 | 3 | 11|   |   | 1 | 2 | 1 |   | 1 | 3 | 6 | F=10,A=1,T=2,Tw=1 | d | 22 格综合（青虫+白郁+郁金香） |
+| 14 | 3 | 22 | 4 | 10|   |   | 2 | 3 | 1 |   | 1 | 1 | 5 | F=10,A=2,Af=1,T=3,Tw=1 | f | Conclude 远端 + appleFruit 加码 |
+| 15 | 伪 | 22 | 2 | 8 | 2 | 2 | 1 | 2 | 1 | 1 |   | 3 | 7 | F=6,Fy=2,Fr=2,A=1,T=2,Tw=1 | d | 伪 rest 多花密集 |
+| 16 | 终 | 22 | 8 | 3 | 2 | 2 | 2 | 1 | 1 | 1 | 1 | 1 | 5 | F=3,Fy=2,Fr=2,A=2,Af=2,T=1,Tw=1 | f | Climax 8 鸟全机制 |
+
+每行 tile 数 sum 已逐行核对 = Layout 总格数（7/9/11/13/16/19/22）。
+
+### 节奏曲线
+```
+鸟密度： 0  1  1  3 │ 0 │ 1  1  2  3 │ 0 │ 1  2  3  4 │ 2 │ 8
+关序：   L1 L2 L3 L4│L5 │L6 L7 L8 L9│L10│L11L12L13L14│L15│L16
+                  ↑              ↑                 ↑   ↑
+                rest1          rest2            伪rest climax
+```
+- **3 个明显波谷**（L5/L10/L15）+ **L16 climax** = 过山车节奏闭环
+- **L4/L9/L14 三个章末小高峰** 鸟 3/3/4 → 章节末压力递增
+- **L15 伪 rest 鸟 2** 比 L14（鸟 4）低，但比 L5/L10（0）高 → 制造"以为通关了"心流陷阱
+- **L16 鸟 8 climax** = 全曲线峰值
+
+### 每关 intro / hooks / designerNotes 草稿（供 @B-COD 后续填 `levelConfigs[]`）
+
+| L | hooks | intro | expectedRunsToWin | expectedFailRate | kishoStage | rhythm |
+|---|---|---|---|---|---|---|
+| 1 | 学习：按住一朵花，拖向相邻的另一朵 | 盘面只有花，没有敌人；按住起点滑动，松手结算。 | 2 | 0.0 | Introduce | valley |
+| 2 | 认识：撞鸟会让本轮收益清零、扣 1 只蜜蜂 | 盘上多了一只鸟。隔壁格的数字提醒你它在哪边——绕开它。 | 3 | 0.1 | Introduce-Bird | valley→rise |
+| 3 | 认识：苹果树会换装（开花→结果→采空） | 粉色花是苹果树。只有开花期能收，采过会变成果实，再下一轮才回到花期。 | 3 | 0.15 | Twist | rise |
+| 4 | 综合：花 + 苹果 + 3 只鸟 | 鸟更多了；用边界数字提前判断敌人位置。 | 6 | 0.35 | Conclude | peak |
+| 5 | 回血：纯花海 + 蜂巢初识 | 没有鸟。盘上多了一个蜂巢——经过两次会送你 1 只蜜蜂。 | 3 | 0.0 | Rest | valley |
+| 6 | 认识：紫郁金香一朵 +2 花蜜 | 紫色花是郁金香，价值是小白花的 2 倍。 | 4 | 0.1 | Introduce | valley |
+| 7 | 训练：在小盘面用蜂巢攒蜜蜂 | 盘面更小，鸟只 1 只。多绕路 2 次经过蜂巢，把蜜蜂数攒起来。 | 4 | 0.15 | Train | rise |
+| 8 | 转折：黄花、红花和紫郁金香混合 | 颜色更多了——但机制和小白花一模一样，只是看上去花。 | 5 | 0.25 | Twist | rise |
+| 9 | 综合：第 2 章考核 + 第一次果实采集 | 第 2 章压轴。本轮的苹果在下一轮会变成果实，记得再回来。 | 6 | 0.3 | Conclude | peak |
+| 10 | 回血：郁金香田 sprout 循环 | 整片紫色，没有鸟。再放 1 个蜂巢，绕回去经过它第 2 次。 | 3 | 0.0 | Rest | valley |
+| 11 | 认识：青虫每回合会吃相邻植被 | 青虫不会扣你蜜蜂，但每回合会跳到相邻已翻开的花上把它吃光。 | 4 | 0.15 | Introduce | valley→rise |
+| 12 | 认识：白色郁金香也 +2 花蜜 | 白色的郁金香——价值和紫色一样，只是花色不同。 | 5 | 0.25 | Twist | rise |
+| 13 | 大盘登场：22 格 + 多机制综合 | 盘面变大了；青虫、白郁、紫郁、苹果同台，规划路线。 | 7 | 0.35 | Train | rise |
+| 14 | 转折：远端鸟群聚集 + 果实再采 | 起点附近是安全的——但深处藏着 4 只鸟。本轮采过的苹果，下一轮会变成果实再 +1。 | 8 | 0.4 | Conclude | peak |
+| 15 | 伪休息：花海多但鸟还在 | 看起来花多鸟少——别松懈，还有 2 只鸟和 1 棵苹果在远处。 | 5 | 0.25 | Pseudo-Rest | valley→rise |
+| 16 | 终局：8 只鸟 + 全机制 | 这是最后一关。起点附近还安全，深处藏着 8 只鸟。决定要走多远。 | 12 | 0.55 | Climax | climax |
+
+### 16 关 16 独特 Hook 一览（Notebook 4C 闭环）
+| 关 | Hook |
+|---|---|
+| L1 | 拖动学习 |
+| L2 | 鸟首引 |
+| L3 | 苹果三态首引 |
+| L4 | 章 1 综合考核 |
+| L5 | 蜂巢首引（rest 内） |
+| L6 | 紫郁 +2 |
+| L7 | 蜂巢主线储蓄（Kishō Train 不引新机制版） |
+| L8 | 黄+红颜色变奏（同机制颜色 reskin） |
+| L9 | appleFruit 桶首启用 |
+| L10 | 郁金香 sprout→bloom 循环演示 |
+| L11 | 青虫干扰 |
+| L12 | 白郁颜色变奏 |
+| L13 | 22 格大盘首秀 + 多机制综合 |
+| L14 | far-cluster 远端聚集 + appleFruit 加码 |
+| L15 | 伪 rest 心流陷阱 |
+| L16 | 8 鸟全机制 climax |
+
+### Notebook 8 条原则闭环验证
+- ✅ **4C Hooks**：16 关 16 独特 Hook
+- ✅ **Kishōtenketsu**：每章 4 关严格 Intro→Train→Twist→Conclude
+- ✅ **过山车节奏**：3 谷（L5/L10/L15）+ 双峰（L14、L16）
+- ✅ **故意打破心流**：L15 伪 rest（鸟 2）紧接 L16 climax（鸟 8）
+- ✅ **显隐性变量**：颜色种类阶梯（章 1 仅白花 → 章 2 加紫黄红 → 章 3 加白郁 → 终章 7 色齐放）
+- ✅ **估 8 实际 24**：所有 `expectedRunsToWin` 留 designerNotes 校准空间
+- ✅ **压力下学不会**：教学关 L2/L3/L6/L7/L11/L12 共 6 关全 `exclude-shortest-safe-path`（37.5%）
+- ✅ **Hooks 独特性**：无填充关，每关一个新东西（L7 蜂巢、L8 颜色 reskin 均独立）
+
+### 代码改动预告（本轮不做）
+仅 `app.js:107-249` `levelConfigs[]` 数组：
+- 12 项扩展为 16 项
+- 每条新增 `intro / hooks / designerNotes`
+- **零结构变更**：不动 layout 拓扑、不动 type 枚举、不动任何函数
+- 后续单独开 `B-COD-LEVEL-DESIGN-16` 任务卡执行
+
+### 风险与待验证
+1. **L13/L14/L15/L16 共 4 关连续使用 22 格** —— BFS 自检需通过：
+   - 所有 tile reachable === 22
+   - 起点邻居 ≥ 3
+   - L11/L13/L14/L15 教学关或低压力关 enemy 不在 SAFE_RADIUS=2 内
+   - L14/L16 `far-from-start-then-cluster` 距离均值 ≥ 4.4
+2. **L13 `_=3` + `default` placement** —— 11 朵 F 是否会让起点邻居被花占满，需自检
+3. **L9 / L14 `Af=1` 实机可达性** —— 苹果三态 cycle 至少 3 次路过同棵树才能拿到 1 fruit，跨多 run 难度预估高风险
+4. **L15 伪 rest 鸟 2** 是否真能制造"伪通关"心流陷阱 —— 需实机校准
+5. **`expectedRunsToWin` 全 16 关** 待真实数据用 `logEvent("level-result")` 校准（notebook 第 6 条"估 8 实际 24"）
+
+### Handoff
+- 任务 ID：`A-PLN-LEVEL-DESIGN-16`
+- 当前状态：✅ 设计文档已落档（16 关 v3 修订版）
+- 下一步：用户确认后开 `B-COD-LEVEL-DESIGN-16` 任务卡，由 `@B-COD` 实施 `app.js:107-249` `levelConfigs[]` 扩展
+- 阻塞：无；NotebookLM 已 3 轮查询，理论原则已锁定，不再追问

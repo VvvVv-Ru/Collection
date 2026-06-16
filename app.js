@@ -1,9 +1,10 @@
 const lockedDangerPreviewCount = 3;
 const tileTypeOrder = ["enemy", "flower", "flower_yellow", "flower_red", "apple_tree", "tulip", "tulip_white", "bee", "caterpillar", "empty"];
 
-// ====== 关卡体系（A-PLN-LEVEL-DESIGN-FINAL）======
-// 三章 × 4 关 + 2 个 rest 关 = 共 12 关。每关都标注 4C Hooks 与 Kishōtenketsu 阶段。
-// 详见 A-PLN.md "A-PLN-LEVEL-DESIGN-FINAL" 章节。
+// ====== 关卡体系（A-PLN-LEVEL-DESIGN-16）======
+// 三章 × 4 关 + 2 个真 rest + 1 伪 rest + 1 climax = 共 16 关。
+// 每关都标注 4C Hooks 与 Kishōtenketsu 阶段。
+// 详见 A-PLN.md "A-PLN-LEVEL-DESIGN-16" 章节。
 
 // 7 / 9 / 11 / 13 / 16 / 19 / 22 盘面拓扑。
 // 邻接规则要求相邻行 slot parity 必须相反（hex-like 行交错），且起点行至少有 3 个邻居。
@@ -105,9 +106,9 @@ const LAYOUT_22 = {
 };
 
 const levelConfigs = [
-  // ===== 第 1 章：花、撞鸟、苹果 =====
+  // ===== 第 1 章：拖动 → 鸟 → 苹果 → 综合 =====
   {
-    // L1：7 格 mini 盘，零敌人零压力，约 2 个 run 完成。
+    // L1：7 格 mini 盘，零敌人零压力，纯拖动学习。
     id: "L1", name: "第 1 关 · 拖动起步", chapter: 1, layout: LAYOUT_7,
     tileTypeRatioBaseCounts: { enemy: 0, flower: 5, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
     initialBeeCount: 6,
@@ -126,10 +127,10 @@ const levelConfigs = [
     enemyPlacementRule: "exclude-shortest-safe-path",
     hooks: "认识：撞鸟会让本轮收益清零、扣 1 只蜜蜂",
     intro: "盘上多了一只鸟。隔壁格的数字提醒你它在哪边——绕开它。",
-    designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0.1, kishoStage: "Train", rhythm: "valley→rise" },
+    designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0.1, kishoStage: "Introduce-Bird", rhythm: "valley→rise" },
   },
   {
-    // L3：11 格 mini 盘，苹果树登场，1 棵 apple = 1 个 run 即可完成苹果目标。
+    // L3：11 格，苹果树登场，1 棵 apple 学三态切换。
     id: "L3", name: "第 3 关 · 苹果开花了", chapter: 1, layout: LAYOUT_11,
     tileTypeRatioBaseCounts: { enemy: 1, flower: 7, flower_yellow: 0, flower_red: 0, apple_tree: 1, tulip: 0, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
     initialBeeCount: 6,
@@ -140,7 +141,7 @@ const levelConfigs = [
     designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0.15, kishoStage: "Twist", rhythm: "rise" },
   },
   {
-    // L4：第 1 章 Conclude。鸟密度上升，apple 增到 2 棵保证目标可达。
+    // L4：第 1 章 Conclude。鸟密度跳到 3，配 2 棵 apple。
     id: "L4", name: "第 4 关 · 第一章考核", chapter: 1, layout: LAYOUT_16,
     tileTypeRatioBaseCounts: { enemy: 3, flower: 9, flower_yellow: 0, flower_red: 0, apple_tree: 2, tulip: 0, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
     initialBeeCount: 6,
@@ -151,22 +152,22 @@ const levelConfigs = [
     designerNotes: { expectedRunsToWin: 6, expectedFailRate: 0.35, kishoStage: "Conclude", rhythm: "peak" },
   },
 
-  // ===== 中场息期 =====
+  // ===== 中场息期 1 =====
   {
-    // L5 rest：零敌人 + 蜜蜂回满，纯花海"回血"。
-    id: "L5", name: "第 5 关 · 休息日 · 花海", chapter: 0, layout: LAYOUT_13,
-    tileTypeRatioBaseCounts: { enemy: 0, flower: 3, flower_yellow: 3, flower_red: 3, apple_tree: 0, tulip: 0, tulip_white: 1, bee: 1, caterpillar: 1, empty: 1 },
-    initialBeeCount: 5,
-    goalTargets: { flower: 10, flower_yellow: 10, flower_red: 10, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 4 },
+    // L5 rest1：零敌人 + 蜂巢首次引入。纯白花海回血。
+    id: "L5", name: "第 5 关 · 休息日 · 蜂巢初识", chapter: 0, layout: LAYOUT_13,
+    tileTypeRatioBaseCounts: { enemy: 0, flower: 9, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 0, bee: 1, caterpillar: 0, empty: 3 },
+    initialBeeCount: 8,
+    goalTargets: { flower: 8, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 0 },
     enemyPlacementRule: "default",
-    hooks: "回血：没有敌人 + 首次见到蜜蜂巢 + 首次见到青虫",
-    intro: "没有任何鸟，路径随便走。盘上多了一个蜜蜂巢（经过两次会送你 1 只蜜蜂）和一只青虫——青虫每回合会跳到相邻植被上把作物吃掉。",
+    hooks: "回血：纯白花海 + 首次见到蜂巢",
+    intro: "没有鸟。盘上多了一个蜂巢——同一格经过两次会送你 1 只蜜蜂。",
     designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0, kishoStage: "Rest", rhythm: "rest" },
   },
 
-  // ===== 第 2 章：郁金香 =====
+  // ===== 第 2 章：紫郁 → 蜂巢主线 → 黄红颜色变奏 → appleFruit 首启用 =====
   {
-    // L6：郁金香登场。只 1 只鸟（章节"鸟"重置回起步级），让玩家专注学新机制。
+    // L6：紫郁金香登场。1 只鸟 + 教学关 exclude-shortest。
     id: "L6", name: "第 6 关 · 郁金香登场", chapter: 2, layout: LAYOUT_16,
     tileTypeRatioBaseCounts: { enemy: 1, flower: 10, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 2, tulip_white: 0, bee: 0, caterpillar: 0, empty: 3 },
     initialBeeCount: 7,
@@ -177,74 +178,122 @@ const levelConfigs = [
     designerNotes: { expectedRunsToWin: 4, expectedFailRate: 0.1, kishoStage: "Introduce", rhythm: "valley" },
   },
   {
-    // L7：盘面扩到 19 格 + 鸟密度上升。仍无苹果，专注 flower+tulip。
-    id: "L7", name: "第 7 关 · 郁金香花田", chapter: 2, layout: LAYOUT_19,
-    tileTypeRatioBaseCounts: { enemy: 2, flower: 10, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 4, tulip_white: 0, bee: 0, caterpillar: 0, empty: 3 },
-    initialBeeCount: 6,
-    goalTargets: { flower: 10, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 3, tulip_white: 0 },
-    enemyPlacementRule: "default",
-    hooks: "训练：在更大的盘面上规划郁金香路线",
-    intro: "盘面变大了；尝试一笔画连续穿过多朵郁金香。",
-    designerNotes: { expectedRunsToWin: 5, expectedFailRate: 0.25, kishoStage: "Train", rhythm: "rise" },
+    // L7：Kishō Train——蜂巢上主线，13 格小盘低压力学储蓄。
+    id: "L7", name: "第 7 关 · 蜂巢主线", chapter: 2, layout: LAYOUT_13,
+    tileTypeRatioBaseCounts: { enemy: 1, flower: 7, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 0, bee: 1, caterpillar: 0, empty: 4 },
+    initialBeeCount: 7,
+    goalTargets: { flower: 6, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 0 },
+    enemyPlacementRule: "exclude-shortest-safe-path",
+    hooks: "训练：蜂巢成为主线资源",
+    intro: "盘面更小，鸟只 1 只。多绕路 2 次经过蜂巢，把蜜蜂数攒起来。",
+    designerNotes: { expectedRunsToWin: 4, expectedFailRate: 0.15, kishoStage: "Train", rhythm: "rise" },
   },
   {
-    // L8：三花同台 = 第 2 章 Conclude。
-    id: "L8", name: "第 8 关 · 三花同台", chapter: 2, layout: LAYOUT_19,
+    // L8：Twist——黄花 + 红花颜色变奏，与紫郁同台。
+    id: "L8", name: "第 8 关 · 黄红颜色变奏", chapter: 2, layout: LAYOUT_16,
+    tileTypeRatioBaseCounts: { enemy: 2, flower: 4, flower_yellow: 3, flower_red: 3, apple_tree: 0, tulip: 2, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
+    initialBeeCount: 6,
+    goalTargets: { flower: 4, flower_yellow: 3, flower_red: 3, apple: 0, appleFruit: 0, tulip: 2, tulip_white: 0 },
+    enemyPlacementRule: "default",
+    hooks: "转折：黄花、红花和紫郁金香混合",
+    intro: "颜色更多了——但机制和小白花一模一样，只是看上去花。",
+    designerNotes: { expectedRunsToWin: 5, expectedFailRate: 0.25, kishoStage: "Twist", rhythm: "rise" },
+  },
+  {
+    // L9：第 2 章 Conclude——appleFruit 桶首次启用。
+    id: "L9", name: "第 9 关 · 第二章考核 · 果实初采", chapter: 2, layout: LAYOUT_19,
     tileTypeRatioBaseCounts: { enemy: 3, flower: 9, flower_yellow: 0, flower_red: 0, apple_tree: 2, tulip: 3, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
     initialBeeCount: 5,
-    goalTargets: { flower: 11, flower_yellow: 0, flower_red: 0, apple: 1, appleFruit: 0, tulip: 3, tulip_white: 0 },
+    goalTargets: { flower: 10, flower_yellow: 0, flower_red: 0, apple: 1, appleFruit: 1, tulip: 3, tulip_white: 0 },
     enemyPlacementRule: "default",
-    hooks: "综合：花 + 苹果 + 郁金香 + 3 只鸟",
-    intro: "三类地块首次同台；优先做哪一类，自己决定。",
-    designerNotes: { expectedRunsToWin: 7, expectedFailRate: 0.35, kishoStage: "Twist+Conclude", rhythm: "rise→peak" },
+    hooks: "综合：第 2 章压轴 + 第一次果实采集",
+    intro: "第 2 章压轴。本轮的苹果在下一轮会变成果实，记得再回来。",
+    designerNotes: { expectedRunsToWin: 6, expectedFailRate: 0.3, kishoStage: "Conclude", rhythm: "peak" },
   },
 
   // ===== 中场息期 2 =====
   {
-    // L9 rest：郁金香主题的"回血"。零敌人 + 大量郁金香。
-    id: "L9", name: "第 9 关 · 休息日 · 郁金香田", chapter: 0, layout: LAYOUT_16,
+    // L10 rest2：郁金香循环演示，零敌人。
+    id: "L10", name: "第 10 关 · 休息日 · 郁金香田", chapter: 0, layout: LAYOUT_16,
     tileTypeRatioBaseCounts: { enemy: 0, flower: 7, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 6, tulip_white: 0, bee: 1, caterpillar: 0, empty: 2 },
     initialBeeCount: 8,
     goalTargets: { flower: 5, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 4, tulip_white: 0 },
     enemyPlacementRule: "default",
-    hooks: "回血：纯郁金香 × 花海，零敌人，蜜蜂巢回归",
-    intro: "整片紫色，没有鸟。再放 1 个蜜蜂巢，记得绕回去经过它第 2 次。",
+    hooks: "回血：郁金香 sprout→bloom 循环演示",
+    intro: "整片紫色，没有鸟。再放 1 个蜂巢，绕回去经过它第 2 次。",
     designerNotes: { expectedRunsToWin: 3, expectedFailRate: 0, kishoStage: "Rest", rhythm: "rest" },
   },
 
-  // ===== 第 3 章：大盘 + 综合考验 =====
+  // ===== 第 3 章：青虫 → 白郁 → 22 格综合 → 远端 Conclude =====
   {
-    // L10：22 格盘面首次出现，但敌人降回 3 只让玩家适应新尺寸。
-    id: "L10", name: "第 10 关 · 大盘首秀", chapter: 3, layout: LAYOUT_22,
-    tileTypeRatioBaseCounts: { enemy: 3, flower: 11, flower_yellow: 0, flower_red: 0, apple_tree: 1, tulip: 3, tulip_white: 0, bee: 0, caterpillar: 0, empty: 4 },
+    // L11：青虫首引。13 格小盘看清吃花机制。
+    id: "L11", name: "第 11 关 · 青虫登场", chapter: 3, layout: LAYOUT_13,
+    tileTypeRatioBaseCounts: { enemy: 1, flower: 7, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 0, bee: 0, caterpillar: 1, empty: 4 },
     initialBeeCount: 7,
-    goalTargets: { flower: 11, flower_yellow: 0, flower_red: 0, apple: 1, appleFruit: 0, tulip: 3, tulip_white: 0 },
+    goalTargets: { flower: 6, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 0 },
     enemyPlacementRule: "exclude-shortest-safe-path",
-    hooks: "认识：22 格大盘面，路径可以更长",
-    intro: "盘面更大了；起点附近留出了安全区，先适应再深入。",
-    designerNotes: { expectedRunsToWin: 5, expectedFailRate: 0.2, kishoStage: "Introduce", rhythm: "valley→rise" },
+    hooks: "认识：青虫每回合会吃相邻植被",
+    intro: "青虫不会扣你蜜蜂，但每回合会跳到相邻已翻开的花上把它吃光。",
+    designerNotes: { expectedRunsToWin: 4, expectedFailRate: 0.15, kishoStage: "Introduce", rhythm: "valley→rise" },
   },
   {
-    // L11：apple 翻倍 + 鸟群加密 = 第 3 章 Twist。
-    id: "L11", name: "第 11 关 · 鸟群加密", chapter: 3, layout: LAYOUT_22,
-    tileTypeRatioBaseCounts: { enemy: 4, flower: 10, flower_yellow: 0, flower_red: 0, apple_tree: 2, tulip: 3, tulip_white: 0, bee: 0, caterpillar: 0, empty: 3 },
+    // L12：白郁金香登场，与青虫同台。
+    id: "L12", name: "第 12 关 · 白色郁金香", chapter: 3, layout: LAYOUT_16,
+    tileTypeRatioBaseCounts: { enemy: 2, flower: 8, flower_yellow: 0, flower_red: 0, apple_tree: 0, tulip: 0, tulip_white: 1, bee: 0, caterpillar: 1, empty: 4 },
     initialBeeCount: 6,
-    goalTargets: { flower: 12, flower_yellow: 0, flower_red: 0, apple: 2, appleFruit: 0, tulip: 4, tulip_white: 0 },
-    enemyPlacementRule: "default",
-    hooks: "训练：苹果翻倍 + 4 只鸟",
-    intro: "苹果树变成两棵，但鸟也跟着加密了。",
-    designerNotes: { expectedRunsToWin: 7, expectedFailRate: 0.35, kishoStage: "Train+Twist", rhythm: "rise→peak" },
+    goalTargets: { flower: 6, flower_yellow: 0, flower_red: 0, apple: 0, appleFruit: 0, tulip: 0, tulip_white: 2 },
+    enemyPlacementRule: "exclude-shortest-safe-path",
+    hooks: "认识：白色郁金香也 +2 花蜜",
+    intro: "白色的郁金香——价值和紫色一样，只是花色不同。",
+    designerNotes: { expectedRunsToWin: 5, expectedFailRate: 0.25, kishoStage: "Twist", rhythm: "rise" },
   },
   {
-    // L12 终局：起点附近无敌人、远端鸟群密集，制造"先稳后炸"的心流打破。
-    id: "L12", name: "第 12 关 · 终局", chapter: 3, layout: LAYOUT_22,
-    tileTypeRatioBaseCounts: { enemy: 5, flower: 10, flower_yellow: 0, flower_red: 0, apple_tree: 2, tulip: 3, tulip_white: 0, bee: 0, caterpillar: 0, empty: 2 },
+    // L13：22 格大盘首秀 + 多机制综合（青虫 + 白郁 + 紫郁 + 苹果）。
+    id: "L13", name: "第 13 关 · 大盘综合", chapter: 3, layout: LAYOUT_22,
+    tileTypeRatioBaseCounts: { enemy: 3, flower: 11, flower_yellow: 0, flower_red: 0, apple_tree: 1, tulip: 2, tulip_white: 1, bee: 0, caterpillar: 1, empty: 3 },
+    initialBeeCount: 6,
+    goalTargets: { flower: 10, flower_yellow: 0, flower_red: 0, apple: 1, appleFruit: 0, tulip: 2, tulip_white: 1 },
+    enemyPlacementRule: "default",
+    hooks: "大盘登场：22 格 + 多机制综合",
+    intro: "盘面变大了；青虫、白郁、紫郁、苹果同台，规划路线。",
+    designerNotes: { expectedRunsToWin: 7, expectedFailRate: 0.35, kishoStage: "Train", rhythm: "rise" },
+  },
+  {
+    // L14：第 3 章 Conclude——远端鸟群聚集 + appleFruit 加码。
+    id: "L14", name: "第 14 关 · 第三章考核 · 远端鸟群", chapter: 3, layout: LAYOUT_22,
+    tileTypeRatioBaseCounts: { enemy: 4, flower: 10, flower_yellow: 0, flower_red: 0, apple_tree: 2, tulip: 3, tulip_white: 1, bee: 0, caterpillar: 1, empty: 1 },
     initialBeeCount: 5,
-    goalTargets: { flower: 14, flower_yellow: 0, flower_red: 0, apple: 2, appleFruit: 0, tulip: 5, tulip_white: 0 },
+    goalTargets: { flower: 10, flower_yellow: 0, flower_red: 0, apple: 2, appleFruit: 1, tulip: 3, tulip_white: 1 },
     enemyPlacementRule: "far-from-start-then-cluster",
-    hooks: "终局：开局宽松，远端鸟群密集",
-    intro: "起点附近是安全的——但深处藏着 5 只鸟，决定要走多远。",
-    designerNotes: { expectedRunsToWin: 9, expectedFailRate: 0.5, kishoStage: "Conclude", rhythm: "valley→peak" },
+    hooks: "转折：远端鸟群聚集 + 果实再采",
+    intro: "起点附近是安全的——但深处藏着 4 只鸟。本轮采过的苹果，下一轮会变成果实再 +1。",
+    designerNotes: { expectedRunsToWin: 8, expectedFailRate: 0.4, kishoStage: "Conclude", rhythm: "peak" },
+  },
+
+  // ===== 伪 rest =====
+  {
+    // L15 伪 rest：鸟 2 + 蜂 7 + 多花密集，制造"以为通关了"心流陷阱。
+    id: "L15", name: "第 15 关 · 伪休息日", chapter: 0, layout: LAYOUT_22,
+    tileTypeRatioBaseCounts: { enemy: 2, flower: 8, flower_yellow: 2, flower_red: 2, apple_tree: 1, tulip: 2, tulip_white: 1, bee: 1, caterpillar: 0, empty: 3 },
+    initialBeeCount: 7,
+    goalTargets: { flower: 6, flower_yellow: 2, flower_red: 2, apple: 1, appleFruit: 0, tulip: 2, tulip_white: 1 },
+    enemyPlacementRule: "default",
+    hooks: "伪休息：花海多但鸟还在",
+    intro: "看起来花多鸟少——别松懈，还有 2 只鸟和 1 棵苹果在远处。",
+    designerNotes: { expectedRunsToWin: 5, expectedFailRate: 0.25, kishoStage: "Pseudo-Rest", rhythm: "valley→rise" },
+  },
+
+  // ===== 终局 =====
+  {
+    // L16 climax：8 鸟 + 全机制聚合 + far-cluster。
+    id: "L16", name: "第 16 关 · 终局", chapter: 3, layout: LAYOUT_22,
+    tileTypeRatioBaseCounts: { enemy: 8, flower: 3, flower_yellow: 2, flower_red: 2, apple_tree: 2, tulip: 1, tulip_white: 1, bee: 1, caterpillar: 1, empty: 1 },
+    initialBeeCount: 5,
+    goalTargets: { flower: 3, flower_yellow: 2, flower_red: 2, apple: 2, appleFruit: 2, tulip: 1, tulip_white: 1 },
+    enemyPlacementRule: "far-from-start-then-cluster",
+    hooks: "终局：8 只鸟 + 全机制",
+    intro: "这是最后一关。起点附近还安全，深处藏着 8 只鸟。决定要走多远。",
+    designerNotes: { expectedRunsToWin: 12, expectedFailRate: 0.55, kishoStage: "Climax", rhythm: "climax" },
   },
 ];
 
@@ -2267,12 +2316,21 @@ function computeBoardSize() {
   const width = boardMetrics.leftPadding * 2 + maxSlot * boardMetrics.xUnit + 56;
   const height = boardMetrics.topPadding * 2 + maxRow * boardMetrics.yUnit + 96;
 
+  // 方案 A：所有关卡共用 LAYOUT_22 的参考尺寸作为 board-viewport，
+  // 小关给 board 加等量 margin-top，让 tile 全部出现完成后整体上下居中。
+  const refNativeWidth =
+    boardMetrics.leftPadding * 2 + MAX_BOARD_SLOT * boardMetrics.xUnit + 56;
+  const refNativeHeight =
+    boardMetrics.topPadding * 2 + MAX_BOARD_ROW * boardMetrics.yUnit + 96;
+  const verticalSlack = Math.max(0, (refNativeHeight - height) / 2);
+
   dom.board.style.width = `${width}px`;
   dom.board.style.height = `${height}px`;
+  dom.board.style.marginTop = `${verticalSlack}px`;
   dom.board.style.transform = `scale(${boardDisplayScale})`;
   if (dom.boardViewport) {
-    dom.boardViewport.style.width = `${width * boardDisplayScale}px`;
-    dom.boardViewport.style.height = `${height * boardDisplayScale}px`;
+    dom.boardViewport.style.width = `${refNativeWidth * boardDisplayScale}px`;
+    dom.boardViewport.style.height = `${refNativeHeight * boardDisplayScale}px`;
   }
   applyResponsiveGameScale();
 }
