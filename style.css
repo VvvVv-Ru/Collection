@@ -75,10 +75,12 @@ body::before {
 }
 
 .fx-overlay {
-  position: absolute;
+  /* 移到 body 直接子级 + position: fixed，脱离 .app-shell 的 stacking context，
+     z-index 高于 .bee-counter(30)，让飞蜜蜂动画始终盖在剩余蜜蜂 HUD 之上。 */
+  position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 30;
+  z-index: 40;
   overflow: visible;
 }
 

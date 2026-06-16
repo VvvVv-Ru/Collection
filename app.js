@@ -2087,7 +2087,7 @@ function spawnBeeRewardFlight(tileId) {
     control: controlPoint,
     end: endPoint,
     startTime: getNow(),
-    duration: collectFeedbackConfig.flyDuration,
+    duration: 1000,
     rotationStart: -18 + Math.random() * 14,
     rotationDelta: 22 + Math.random() * 26,
     type: "bee_reward",
