@@ -663,3 +663,62 @@
   - 第 1 次 enqueue `willReward=false`；commit 后 `stage1 / passCount=1 / bees 不变`
   - 第 2 次 enqueue `willReward=true`；commit 后通过无 DOM 兜底立即 `finalizeBeeReward` → `stage0 / passCount=0 / bees +1`
   - 第 3 次 enqueue 又回到 `willReward=false`，循环正确
+---
+
+## B-COD-CATERPILLAR-01：青虫地块
+
+任务来源：A-PLN.md `A-PLN-CATERPILLAR-01`
+
+### 改动清单
+
+- `app.js`
+  - `tileTypeOrder` 加 `"caterpillar"`（bee 后、empty 前）
+  - 新增常量 `caterpillarOverlayAsset = "./assets/tiles/insects_01.png"`
+  - `tileAssetMap.caterpillar = "./assets/tiles/tile-empty.png"`（底图复用 empty）
+  - `createTileTypeSummary()` 加 `caterpillar: 0`
+  - 默认全局 `tileTypeRatioBaseCounts` 加 `caterpillar: 0`
+  - 12 关 `levelConfigs` 全部加 `caterpillar` 字段；L5 设 1（empty: 2 → 1）；L5 hooks/intro 加青虫文案
+  - `assignRandomTileTypes` 新增 caterpillar 候选池（bee 之后、flower 之前）
+  - `validateTypeMap` 加 caterpillar 数量校验
+  - `isSafeTileType` 包含 `"caterpillar"`
+  - `getSafeTileOverlayMarkup` 加 caterpillar 分支（单层 `<img>` 叠在 tile-empty 底上）
+  - `getTileTypeLabel("caterpillar") = "青虫"`
+  - `getFlightAssetForType("caterpillar_jump") = caterpillarOverlayAsset`
+  - 新增 `runCaterpillarMovementsAfterRound()`：候选 = revealed 且 type ∈ {flower, apple_tree, tulip}；按 caterpillarId 升序结算；冲突复查；源格立即 → empty + 翻牌；目标格 → 飞行落地回调中变 caterpillar + 翻牌 + 压扁；全盘重算 dangerCount
+  - 新增 `spawnCaterpillarJump(sourceTileId, targetTileId, onLand)`：贝塞尔弧线 + arcHeight 56–90px + 560ms + 轻微摆动；type=`"caterpillar_jump"`；带 `onLand` 回调
+  - 新增 `triggerCaterpillarSquash(tileId)`：给目标 tile 元素加 `tile--caterpillar-squash` class，220ms 后移除
+  - `finishFlowerFlight` 加 caterpillar_jump 分支：调 `flight.onLand?.()`，不走 commitGoalArrival
+  - `completeRun` 四处接入点（失败 / 纯路过 / 零花蜜捷径 / 有花蜜结算尾）：在 `runEnemyMovementsAfterRound()` 前各插一行 `runCaterpillarMovementsAfterRound()`（先青虫后小鸡）
+- `style.css`
+  - 新增 `.tile__image--caterpillar`（参照 tulip 尺寸，68% 宽，居中略上）
+  - 新增 `.tile--caterpillar-squash .tile__inner` + `@keyframes tile-caterpillar-squash`（220ms 弹性压扁）
+
+### 规则与时序
+
+- 青虫地块路过：无副作用、无收益、无 silentBounce（默认 enqueue 不处理 = 等同 empty）
+- 结算尾顺序：青虫（吃 + 跳） → 小鸡（换位）
+- 青虫候选：邻居中 revealed && type ∈ {flower, apple_tree, tulip}（bee/empty/caterpillar 排除）
+- 选中目标：随机一个；按 tileId 升序解决多只青虫冲突
+- 视觉时序：
+  1. 源格立即 type=empty + 翻牌
+  2. 发射飞行 insects_01.png 走贝塞尔弧线
+  3. 落地：目标 type=caterpillar、growthStage=null、翻牌 + 压扁
+  4. 全盘重算 dangerCount
+- 失败链路同样触发（路径 1）
+- 不进 `goalTargets` / 不进任何花蜜桶 / 不入 combo
+
+### 自检
+
+- `node --check app.js` 通过
+- 节点级模拟：
+  - L5 棋盘类型汇总：`{flower:10, empty:1, bee:1, caterpillar:1}` 共 13 ✅
+  - 青虫位移：T13(caterpillar) → T09(flower bloom)
+    - 落地后 T13.type=empty、T09.type=caterpillar、growthStage=null ✅
+  - 无植被邻居场景：青虫原地保留 type=caterpillar ✅
+  - 日志输出 `青虫吃作物 { moves, skippedNoTarget, skippedConflict }` 正确
+
+### 范围说明
+- 本轮只做 caterpillar，不动 orange_tree
+- 不做"被吃植被退还花蜜"
+- 不做青虫专属 toast / 警告 / 起跳烟雾
+- `Collection/` 子目录是历史拷贝，本次未同步修改

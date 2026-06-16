@@ -722,3 +722,66 @@
 - 当前状态：✅ 规则已锁，可开发
 - 下一步：`@B-COD` 按 B1–B9 拆模块实现 → 自检 → `@B-FIX` 实机回归
 - 阻塞：无
+
+---
+
+## 任务卡：新增青虫地块（A-PLN-CATERPILLAR-01）
+
+- 任务 ID：`A-PLN-CATERPILLAR-01`
+- 目标：在棋盘上新增 `caterpillar` 类型地块，玩家路过无影响；每回合结束时青虫会跳到相邻已翻开植被上"吃掉作物 + 自身位移"
+
+### 已确认口径（与用户拍板）
+
+#### 命名
+- 类型：`caterpillar`
+- 前景切图：`assets/tiles/insects_01.png`（用户提供）
+- 底图：`assets/tiles/tile-empty.png`（双层结构，与 flower / tulip 同套路）
+- 视觉文本："青虫"
+
+#### 规则
+1. 拖动经过青虫格：无收益、不进 combo、无 silentBounce、不扣蜜蜂（等同 empty）
+2. 触发时机：本轮结算尾，**先青虫后小鸡**（Q9=B）
+3. 候选目标：邻居中**已翻开** + type ∈ {flower, apple_tree, tulip}（Q2/Q4）
+4. 选择策略：随机一个
+5. 吃法：整棵植被被吃 → 目标格变 caterpillar，growthStage 清空（Q3=A）
+6. 源格 → 变 empty
+7. 无合法目标：原地不动，下回合继续尝试（Q6=A）
+8. 多只青虫冲突：按 tileId 升序结算（Q7=A）
+9. 撞鸟失败本轮：青虫仍移动（Q8=A）
+10. `isSafeTileType("caterpillar") = true`（起点可、enemy 不重叠）
+11. 不进 `goalTargets` / 不进任何花蜜桶 / 不参与 combo
+
+#### 移动视觉（Q5=B 新做跳跃动画）
+- 复用 `feedbackState.activeFlights` 飞行管线，flight type = `"caterpillar_jump"`
+- 飞行素材：`insects_01.png`
+- 轨迹：贝塞尔曲线，`arcHeight` 约 56–90px（比飞花/飞蜜蜂更低，地面感）
+- 时长：560ms
+- 旋转：轻微摆动 -8° → +8°
+- 着陆压扁：目标 tile 加 `tile--caterpillar-squash` class，220ms `scale` 弹性收缩
+
+#### 关卡引入（Q10=L5、Q10.1=A 1 只）
+- L5（rest 关）：caterpillar=1，`empty -1`（10/0/0/0/1/1/1 = 13 = LAYOUT_13 总数）
+- 其余 11 关：caterpillar=0
+- ⚠️ 备注：L5 同关引入 bee + caterpillar，违反"每关只引入一个"原则；按用户选择执行
+- L5 intro/hooks 文案补"青虫每回合会吃相邻植被"
+
+### 实施摘要
+- 见 `B-COD.md` `B-COD-CATERPILLAR-01`
+
+### 验收
+
+1. L5 开局可见 1 个 caterpillar 格（tile-empty + insects_01 双层）
+2. 拖过青虫格：无小跳、无飞物、无花蜜、无 combo、不扣蜜蜂
+3. 翻开后结算尾：青虫先跳，邻居有已翻开植被 → 贝塞尔弧线跳到目标格 + 着陆压扁；源格 → empty；目标格 → caterpillar（作物消失）
+4. 无合法目标：原地不动
+5. 多只青虫指向同一格：升序结算
+6. 撞鸟失败：青虫仍移动
+7. caterpillar 不进任何花蜜桶 / 通关条件 / combo
+8. `dangerCount` 重算正确
+9. `node --check app.js` 通过
+
+### Handoff
+- 任务 ID：`A-PLN-CATERPILLAR-01`
+- 当前状态：✅ 已落地，等 `@B-FIX` 实机回归
+- 下一步：浏览器跑 L5，确认青虫跳跃动画、压扁、吃花、翻牌
+- 阻塞：无
